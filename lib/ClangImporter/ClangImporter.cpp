@@ -6378,6 +6378,18 @@ TinyPtrVector<ValueDecl *> ClangRecordMemberLookup::evaluate(
           if (foundNameArities.count(getArity(foundInBase)))
             continue;
 
+          if (foundInBase->getName() != name) {
+            // this means the function was renamed with swift_name
+            if (auto clangDecl = foundInBase->getClangDecl()) {
+              if (auto clangMethodDecl = dyn_cast<clang::CXXMethodDecl>(clangDecl)) {
+                if (clangMethodDecl->isVirtual()) {
+                  // TODO make sure the name is not different
+                }
+              }
+            }
+          }
+          
+
           collector.add(foundInBase);
         }
       }

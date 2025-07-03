@@ -139,3 +139,46 @@ inline const Immortal *_Nonnull castToImmortal(
     const DerivedFromImmortal *_Nonnull immortal) {
   return static_cast<const Immortal *>(immortal);
 }
+
+struct IMMORTAL_FRT A1 {
+  virtual int virtualMethod() const { return 111; }
+
+  __attribute__((swift_name("swiftVirtualRename()"))) 
+  virtual int virtualRename() const { return 112; }
+
+  __attribute__((swift_name("swiftVirtualRenameDifferently()")))
+  virtual int virtualRenameDifferently() const { return 113; }
+};
+
+struct IMMORTAL_FRT A2 {
+  __attribute__((swift_name("swiftVirtualMethod()")))
+  virtual int virtualMethod() const { return 121; }
+
+  __attribute__((swift_name("swiftVirtualRename()")))
+  virtual int virtualRename() const { return 122; }
+
+  __attribute__((swift_name("incorrectVirtualRename()")))
+  virtual int virtualRenameDifferently() const { return 123; }
+};
+
+struct B1 : A1 {
+  __attribute__((swift_name("swiftVirtualMethod()")))
+  virtual int virtualMethod() const { return 211; }
+
+  virtual int virtualRename() const { return 212; }
+  
+  __attribute__((swift_name("incorrectVirtualRenameDifferently()")))
+  virtual int virtualRenameDifferently() const { return 213; }
+};
+
+struct C1 : B1 {
+  // virtual int swiftVirtualRename() const; // TODO
+  virtual int virtualRename() const { return 312; }
+};
+
+struct D1 : A1, A2 {
+  //   virtual int virtualMethod() const;
+
+  virtual int virtualRename() const { return 412; }
+//   virtual int virtualRenameDifferently() const;
+};

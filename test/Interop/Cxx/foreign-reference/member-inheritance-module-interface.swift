@@ -15,3 +15,21 @@
 // CHECK-NEXT: final func virtualMethod(_: HasDestructor)
 // CHECK-NEXT: final func swiftVirtualRename()
 // CHECK: }
+
+// CHECK: class A1 {
+// CHECK: final func virtualMethod() -> Int32
+// CHECK: final func swiftVirtualRename() -> Int32
+// CHECK: final func swiftVirtualRenameDifferently() -> Int32
+// CHECK: }
+
+// CHECK: class A2 {
+// CHECK: final func swiftVirtualMethod() -> Int32
+// CHECK: final func swiftVirtualRename() -> Int32
+// CHECK: final func incorrectVirtualRename() -> Int32
+// CHECK: }
+
+// CHECK: class B1 {
+// CHECK: final func virtualMethod() -> Int32
+// CHECK: final func swiftVirtualRename() -> Int32
+// CHECK: final func swiftVirtualRenameDifferently() -> Int32
+// CHECK: }

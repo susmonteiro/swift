@@ -2353,7 +2353,8 @@ namespace {
         }
 
         if (nd->getDeclName().isIdentifier())
-          allMemberNames.insert(nd->getName());
+          allMemberNames.insert(
+              nd->getName()); // TODO should this be the new name?
 
         if (isa<TypeDecl>(member)) {
           // TODO: we have a problem lazily looking up unnamed members, so we
@@ -4428,6 +4429,24 @@ namespace {
             // Create a thunk that will perform dynamic dispatch.
             // TODO: we don't have to import the actual `method` in this case,
             // we can just synthesize a thunk and import that instead.
+
+            if (decl->size_overridden_methods() != 0) {
+              // the thunk from the base class will be cloned
+              // no need to create a new thunk, since they will be equivalent
+              if (auto swiftNameAttr = decl->getAttr<clang::SwiftNameAttr>())
+                Impl.diagnose(HeaderLoc(swiftNameAttr->getLoc()),
+                              diag::unsupported_swift_name_virtual_methods,
+                              swiftNameAttr->getName());
+              if (decl->size_overridden_methods() > 1) {
+                // TODO check that they have the same name
+                auto firstVirtualMethod = *decl->begin_overridden_methods();
+                auto virtualMethodName = firstVirtualMethod->getName();
+                
+              }
+
+              return nullptr;
+            }
+
             auto result = synthesizer.makeVirtualMethod(decl);
             if (result) {
               return result;

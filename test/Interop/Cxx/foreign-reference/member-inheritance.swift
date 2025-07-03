@@ -111,6 +111,20 @@ if #available(SwiftStdlib 5.8, *) {
     func f(immortalClass: Immortal2) {
       immortalClass.swiftVirtualRename()
     }
+
+    func overrides(_ a1: A1, _ b1: B1, _ c1: C1) {
+      expectEqual(a1.virtualMethod(), 111);
+      expectEqual(a1.swiftVirtualRename(), 112);
+      expectEqual(a1.swiftVirtualRenameDifferently(), 113);
+
+      expectEqual(b1.virtualMethod(), 211);
+      expectEqual(b1.swiftVirtualRename(), 212);
+      expectEqual(b1.swiftVirtualRenameDifferently(), 213); 
+
+      expectEqual(c1.virtualMethod(), 211);
+      expectEqual(c1.swiftVirtualRename(), 212);
+      expectEqual(c1.swiftVirtualRenameDifferently(), 213); 
+    }
   } 
 }
 

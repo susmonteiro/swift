@@ -59,6 +59,11 @@ GROUPED_WARNING(invalid_swift_name_for_decl, ClangDeclarationImport, none,
   "imported as %1 instead",
   (StringRef, ValueDecl *))
 
+WARNING(unsupported_swift_name_virtual_methods, none,
+        "the swift_name %0 will be ignored; "
+        "swift_name attributes in virtual methods overrides are not supported",
+        (StringRef))
+
 NOTE(note_while_importing, none, "while importing '%0'", (StringRef))
 ERROR(swift_name_protocol_static, none, "swift_name cannot be used to define "
                                          "%select{static member|init}0 on "
