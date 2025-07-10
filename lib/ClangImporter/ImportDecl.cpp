@@ -55,9 +55,11 @@
 #include "swift/ClangImporter/ClangImporterRequests.h"
 #include "swift/ClangImporter/ClangModule.h"
 #include "swift/Parse/Lexer.h"
+#include "swift/Parse/ParseDeclName.h"
 #include "swift/Strings.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/Attrs.inc"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjCCommon.h"
@@ -4424,7 +4426,36 @@ namespace {
             // Create a thunk that will perform dynamic dispatch.
             // TODO: we don't have to import the actual `method` in this case,
             // we can just synthesize a thunk and import that instead.
+            bool shouldMarkUnavailable = false;
+            ImportedName importedName;
+            std::string unavailabilityMsg = "";
+            std::tie(importedName, std::ignore) = importFullName(decl);
+
+            // if (decl->size_overridden_methods() > 0) {
+            if (auto swiftNameAttr = decl->getAttr<clang::SwiftNameAttr>()) {
+              auto parsedDeclName = parseDeclName(swiftNameAttr->getName());
+
+              auto swiftDeclName =
+                  formDeclName(method->getASTContext(), parsedDeclName.BaseName,
+                               parsedDeclName.ArgumentLabels, true, false);
+
+              if (swiftDeclName != importedName.getDeclName())
+                
+                unavailabilityMsg = (llvm::Twine("ignoring swift_name '") +
+                                     swiftNameAttr->getName() + "' in '" +
+                                     decl->getParent()->getName() +
+                                     "'; swift_name attributes have no effect "
+                                     "in virtual methods overrides")
+                                        .str();
+              shouldMarkUnavailable = true;
+              // }
+              // return nullptr;
+            }
+
             auto result = synthesizer.makeVirtualMethod(decl);
+            if (shouldMarkUnavailable) {
+              Impl.markUnavailable(result, unavailabilityMsg);
+            }
             if (result) {
               return result;
             } else {
@@ -10365,6 +10396,23 @@ ValueDecl *ClangImporter::Implementation::createUnavailableDecl(
   markUnavailable(var, UnavailableMessage);
 
   return var;
+}
+
+void ClangImporter::Implementation::handleUnavailableVirtualMethod(
+    ValueDecl *decl) {
+  if (!decl || decl->isUnavailable())
+    return;
+
+  auto *cxxRecordDecl = dyn_cast<clang::CXXRecordDecl>(
+      decl->getDeclContext()->getAsDecl()->getClangDecl());
+
+  if (!cxxRecordDecl)
+    return;
+
+  if (findUnavailableMethod(cxxRecordDecl, decl->getName())) {
+    markUnavailable(decl,
+                    "overrides multiple C++ methods with different Swift names");
+  }
 }
 
 // Force the members of the entire inheritance hierarchy to be loaded and

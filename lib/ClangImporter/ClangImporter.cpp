@@ -7671,6 +7671,7 @@ ValueDecl *ClangImporter::Implementation::importBaseMemberDecl(
   auto known = clonedBaseMembers.find(key);
   if (known == clonedBaseMembers.end()) {
     ValueDecl *cloned = cloneBaseMemberDecl(decl, newContext, inheritance);
+    handleUnavailableVirtualMethod(cloned);
     known = clonedBaseMembers.insert({key, cloned}).first;
     clonedMembers.insert(std::make_pair(cloned, decl));
   }
