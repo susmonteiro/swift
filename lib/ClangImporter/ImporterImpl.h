@@ -694,6 +694,10 @@ private:
   // Map all cloned methods back to the original member
   llvm::DenseMap<ValueDecl *, ValueDecl *> clonedMembers;
 
+  // Keep track of methods that are unavailale in each class.
+  llvm::DenseSet<std::pair<const clang::CXXRecordDecl *, DeclName>>
+      unavailableMethods;
+
 public:
   llvm::DenseMap<const clang::ParmVarDecl*, FuncDecl*> defaultArgGenerators;
 
@@ -721,6 +725,18 @@ public:
   importer::EnumKind getEnumKind(const clang::EnumDecl *decl) {
     return getNameImporter().getEnumKind(decl);
   }
+
+  bool findUnavailableMethod(const clang::CXXRecordDecl *classDecl,
+                             DeclName name) {
+    return unavailableMethods.contains({classDecl, name});
+  }
+
+  void insertUnavailableMethod(const clang::CXXRecordDecl *classDecl,
+                               DeclName name) {
+    unavailableMethods.insert({classDecl, name});
+  }
+
+  void handleUnavailableVirtualMethod(ValueDecl *decl);
 
 private:
   /// A mapping from imported declarations to their "alternate" declarations,

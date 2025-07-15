@@ -111,6 +111,40 @@ if #available(SwiftStdlib 5.8, *) {
     func f(immortalClass: Immortal2) {
       immortalClass.swiftVirtualRename()
     }
+
+    func overrides(_ a1: A1, _ b1: B1, _ c1: C1, _ c2: C2, _ a2: A2, _ d1: D1, _ d2: D2, _ d4: D4) {
+      expectEqual(a1.virtualMethod(), 111)
+      expectEqual(a1.swiftFooRename(), 112)
+      expectEqual(a1.swiftBarRename(), 113)
+      expectEqual(a1.swiftParamsRename(a1: 42), 42)
+
+      expectEqual(b1.virtualMethod(), 211)
+      expectEqual(b1.swiftFooRename(), 212)
+      expectEqual(b1.swiftBarRename(), 213)
+      expectEqual(b1.swiftParamsRename(a1: 42), 42)
+
+      expectEqual(c1.virtualMethod(), 211)
+      expectEqual(c1.swiftFooRename(), 312)
+      expectEqual(c1.swiftBarRename(), 313)
+      expectEqual(c1.swiftParamsRename(a1: 42), 42)
+
+      expectEqual(c2.virtualMethod(), 321)
+      expectEqual(c2.swiftFooRename(), 322)
+      expectEqual(c2.swiftBarRename(), 323)
+      expectEqual(c2.swiftParamsRename(a1: 42), 42)
+
+      expectEqual(a2.swiftVirtualMethod(), 121)
+      expectEqual(a2.swiftFooRename(), 122)
+      expectEqual(a2.A2BarRename(), 123)
+      expectEqual(a2.swiftParamsRename(a2: 42), 42)
+
+      expectEqual(d1.virtualMethod(), 111)
+      expectEqual(d1.swiftBarRename(), 113)
+      expectEqual(d1.swiftParamsRename(a1: 42), 42)
+      expectEqual(d1.swiftVirtualMethod(), 121)
+      expectEqual(d1.A2BarRename(), 123)
+      expectEqual(d1.swiftParamsRename(a2: 42), 42)
+    }
   } 
 }
 
