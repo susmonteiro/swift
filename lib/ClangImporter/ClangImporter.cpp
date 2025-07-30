@@ -60,6 +60,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
@@ -69,6 +70,7 @@
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/Module.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CAS/CASOptions.h"
@@ -8137,24 +8139,66 @@ static bool isSufficientlyTrivial(const clang::CXXRecordDecl *decl) {
 
 /// Checks if a record provides the required value type lifetime operations
 /// (copy and destroy).
-static bool hasCopyTypeOperations(const clang::CXXRecordDecl *decl) {
+static bool hasCopyTypeOperations(const clang::CXXRecordDecl *decl,
+                                  ClangImporter::Implementation *importerImpl) {
   // Hack for a base type of std::optional from the Microsoft standard library.
   if (decl->isInStdNamespace() && decl->getIdentifier() &&
       decl->getName() == "_Optional_construct_base")
     return true;
 
-  if (decl->hasSimpleCopyConstructor())
-    return true;
+  bool foundCandidateCopyConstructor =
+      decl->hasSimpleCopyConstructor() ||
+      llvm::any_of(decl->ctors(), [](clang::CXXConstructorDecl *ctor) {
+        return (ctor->isCopyConstructor() && !ctor->isDeleted() &&
+                // FIXME: Support default arguments (rdar://142414553)
+                ctor->getNumParams() == 1 &&
+                ctor->getAccess() == clang::AccessSpecifier::AS_public);
+      });
 
-  // If we have no way of copying the type we can't import the class
-  // at all because we cannot express the correct semantics as a swift
-  // struct.
-  return llvm::any_of(decl->ctors(), [](clang::CXXConstructorDecl *ctor) {
-    return ctor->isCopyConstructor() && !ctor->isDeleted() &&
-           // FIXME: Support default arguments (rdar://142414553)
-           ctor->getNumParams() == 1 &&
-           ctor->getAccess() == clang::AccessSpecifier::AS_public;
-  });
+  llvm::errs() << decl->getNameAsString()
+               << " has copy type operations: " << foundCandidateCopyConstructor
+               << "\n";
+
+  if (!foundCandidateCopyConstructor)
+    return false;
+
+  // clang::Sema &clangSema = importerImpl->getClangSema();
+  // clang::ASTContext &ctx = decl->getASTContext();
+
+  // clang::QualType recordType = ctx.getTypeDeclType(decl);
+  // auto constRefValueType =
+  // ctx.getLValueReferenceType(recordType.withConst()); clang::TypeSourceInfo
+  // *recordTypeInfo =
+  //     ctx.getTrivialTypeSourceInfo(recordType);
+  // clang::SourceLocation recordLoc = decl->getLocation();
+
+  // // Create a fake variable with type of the wrapped value.
+  // auto fakeValueVarDecl =
+  //     clang::VarDecl::Create(ctx, /*DC*/ ctx.getTranslationUnitDecl(),
+  //                            clang::SourceLocation(),
+  //                            clang::SourceLocation(),
+  //                            /*Id*/ nullptr, constRefValueType,
+  //                            recordTypeInfo, clang::StorageClass::SC_None);
+  // auto fakeValueRefExpr = new (ctx) clang::DeclRefExpr(
+  //     ctx, fakeValueVarDecl, false, constRefValueType.getNonReferenceType(),
+  //     clang::ExprValueKind::VK_LValue, clang::SourceLocation());
+
+  // SmallVector<clang::Expr *, 1> constructExprArgs = {fakeValueRefExpr};
+
+  // // Instantiate the templated constructor that would accept this
+  // // fake variable.
+  // clang::Sema::SFINAETrap trap(clangSema);
+  // auto constructExprResult = clangSema.BuildCXXTypeConstructExpr(
+  //     recordTypeInfo, recordLoc, constructExprArgs, recordLoc,
+  //     /*ListInitialization*/ true);
+
+  // llvm::errs() << "ConstructExprResult -> usable: "
+  //              << constructExprResult.isUsable()
+  //              << "; trap: " << trap.hasErrorOccurred() << "\n";
+
+  // return constructExprResult.isUsable() && !trap.hasErrorOccurred();
+
+  return true;
 }
 
 static bool hasMoveTypeOperations(const clang::CXXRecordDecl *decl) {
@@ -8242,7 +8286,8 @@ CxxRecordSemantics::evaluate(Evaluator &evaluator,
     return CxxRecordSemanticsKind::SwiftClassType;
 
   if (!hasDestroyTypeOperations(cxxDecl) ||
-      (!hasCopyTypeOperations(cxxDecl) && !hasMoveTypeOperations(cxxDecl))) {
+      (!hasCopyTypeOperations(cxxDecl, importerImpl) &&
+       !hasMoveTypeOperations(cxxDecl))) {
 
     if (hasConstructorWithUnsupportedDefaultArgs(cxxDecl))
       return CxxRecordSemanticsKind::UnavailableConstructors;
@@ -8262,7 +8307,7 @@ CxxRecordSemantics::evaluate(Evaluator &evaluator,
     return CxxRecordSemanticsKind::Iterator;
   }
 
-  if (hasCopyTypeOperations(cxxDecl)) {
+  if (hasCopyTypeOperations(cxxDecl, importerImpl)) {
     return CxxRecordSemanticsKind::Owned;
   }
 
