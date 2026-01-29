@@ -3857,6 +3857,8 @@ private:
         VarDecl(/*isStatic=*/false, VarDecl::Introducer::Let,
                 nextCall->getStartLoc(), ctx.getIdentifier(varName), dc);
     nextCallVar->setImplicit();
+    nextCallVar->addAttribute(DeclAttribute::createSimple(
+        ctx, DeclAttrKind::EagerMove, SourceLoc(), SourceLoc()));
 
     auto *whileBody = BraceStmt::create(
         ctx, stmt->getBody()->getLBraceLoc(), buildWhileBody(nextCallVar),
