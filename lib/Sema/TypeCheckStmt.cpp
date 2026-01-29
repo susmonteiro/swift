@@ -3455,7 +3455,7 @@ class DesugarForEachStmt {
   VarDecl *makeIteratorVar = nullptr;
   ProtocolDecl *sequenceProto = nullptr;
   ProtocolConformanceRef seqConformanceRef;
-  ForEachStmt *innerLoop = nullptr;
+  WhileStmt *innerLoop = nullptr;
 
 public:
   DesugarForEachStmt(ForEachStmt *stmt)
@@ -3477,10 +3477,6 @@ public:
     if (seqType->hasError() || stmt->getPattern()->getType()->hasError() ||
         (stmt->getWhere() && stmt->getWhere()->getType()->hasError()))
       return nullptr;
-
-    // Check if this is a borrowing sequence by looking for
-    // BorrowingIteratorProtocol
-    isBorrowing = isBorrowing && !stmt->getPattern()->getType()->isCopyable();
 
     sequenceProto =
         isAsync ? ctx.getProtocol(KnownProtocolKind::AsyncSequence)
@@ -3694,6 +3690,52 @@ private:
     return ctx.AllocateCopy(cond);
   }
 
+  VarDecl *buildCountVar(DeclRefExpr *nextCallVarRef) {
+    auto *countVar = new (ctx) VarDecl(
+        /*isStatic=*/false, VarDecl::Introducer::Let, stmt->getForLoc(),
+        ctx.getIdentifier("$count"), dc);
+    countVar->setImplicit();
+    return countVar;
+  }
+
+  StmtCondition buildInnerWhileCond(VarDecl *countVar, VarDecl *indexVar) {
+    auto *indexRef =
+        new (ctx) DeclRefExpr(indexVar, DeclNameLoc(), /*implicit=*/true);
+    auto *countVarRef =
+        new (ctx) DeclRefExpr(countVar, DeclNameLoc(), /*implicit=*/true);
+
+    auto *lessThanOp = new (ctx)
+        UnresolvedDeclRefExpr(DeclNameRef(ctx.getIdentifier("<")),
+                              DeclRefKind::BinaryOperator, DeclNameLoc());
+    auto *condition = BinaryExpr::create(ctx, indexRef, lessThanOp, countVarRef,
+                                         /*implicit=*/true);
+
+    auto conditionElement = StmtConditionElement(condition);
+    SmallVector<StmtConditionElement> innerWhileCond;
+    innerWhileCond.push_back(conditionElement);
+
+    return ctx.AllocateCopy(innerWhileCond);
+  }
+
+  AssignExpr *buildIndexIncrAssignment(VarDecl *indexVar) {
+    // Add $i = $i + 1 at the end of the body
+    auto *indexRefForIncr =
+        new (ctx) DeclRefExpr(indexVar, DeclNameLoc(), /*implicit=*/true);
+    auto *indexRefRHS =
+        new (ctx) DeclRefExpr(indexVar, DeclNameLoc(), /*implicit=*/true);
+    auto *oneLiteral =
+        IntegerLiteralExpr::createFromUnsigned(ctx, 1, stmt->getForLoc());
+
+    auto *plusOp = new (ctx)
+        UnresolvedDeclRefExpr(DeclNameRef(ctx.getIdentifier("+")),
+                              DeclRefKind::BinaryOperator, DeclNameLoc());
+    auto *addExpr = BinaryExpr::create(ctx, indexRefRHS, plusOp, oneLiteral,
+                                       /*implicit=*/true);
+
+    return new (ctx)
+        AssignExpr(indexRefForIncr, SourceLoc(), addExpr, /*implicit=*/true);
+  }
+
   SmallVector<ASTNode> buildWhileBody(VarDecl *nextCallVar) {
     SmallVector<ASTNode> bodyElements;
 
@@ -3711,7 +3753,7 @@ private:
     if (isBorrowing) {
       // Bind original pattern to span[i] in inner loop.
       auto *indexVar = new (ctx) VarDecl(
-          /*isStatic=*/false, VarDecl::Introducer::Let, stmt->getForLoc(),
+          /*isStatic=*/false, VarDecl::Introducer::Var, stmt->getForLoc(),
           ctx.getIdentifier("$i"), dc);
       indexVar->setImplicit();
       indexPattern = NamedPattern::createImplicit(ctx, indexVar);
@@ -3769,24 +3811,40 @@ private:
     }
 
     if (isBorrowing) {
-      auto indicesId = ctx.getIdentifier("indices");
-      auto *indicesRef = new (ctx) UnresolvedDotExpr(
-          nextCallVarRef, SourceLoc(), DeclNameRef(indicesId), DeclNameLoc(),
+      // Create integer literal 0 for initial value of $i
+      auto *zeroLiteral =
+          IntegerLiteralExpr::createFromUnsigned(ctx, 0, stmt->getForLoc());
+      auto *indexInitPB = PatternBindingDecl::createImplicit(
+          ctx, StaticSpellingKind::None, indexPattern, zeroLiteral, dc);
+
+      // $count = $span.count
+      auto *countVar = buildCountVar(nextCallVarRef);
+      auto *countPattern = NamedPattern::createImplicit(ctx, countVar);
+
+      auto countId = ctx.getIdentifier("count");
+      auto *countRef = new (ctx) UnresolvedDotExpr(
+          nextCallVarRef, SourceLoc(), DeclNameRef(countId), DeclNameLoc(),
           /*implicit=*/true);
+      auto *countPB = PatternBindingDecl::createImplicit(
+          ctx, StaticSpellingKind::None, countPattern, countRef, dc);
 
-      auto *innerBody =
+      auto *indexVar = indexPattern->getSingleVar();
+      ASSERT(indexVar != nullptr);
+
+      // Add $i = $i + 1 at the end of the body
+      bodyElements.push_back(buildIndexIncrAssignment(indexVar));
+
+      auto *innerWhileBody =
           BraceStmt::create(ctx, stmt->getBody()->getLBraceLoc(), bodyElements,
-                            stmt->getBody()->getRBraceLoc());
+                            stmt->getBody()->getRBraceLoc(),
+                            /*implicit=*/true);
 
-      // Create the inner ForEachStmt, which will be desugared recursively.
       innerLoop = new (ctx)
-          ForEachStmt(LabeledStmtInfo(), stmt->getForLoc(), stmt->getTryLoc(),
-                      stmt->getAwaitLoc(), stmt->getUnsafeLoc(), indexPattern,
-                      /* InLoc */ stmt->getInLoc(), indicesRef, SourceLoc(),
-                      /*where=*/nullptr, innerBody, dc,
-                      /*implicit=*/true);
+          WhileStmt(LabeledStmtInfo(), stmt->getForLoc(),
+                    /* $i < $count */ buildInnerWhileCond(countVar, indexVar),
+                    innerWhileBody, /*implicit=*/true);
 
-      return {innerLoop};
+      return {indexInitPB, countPB, innerLoop};
     }
 
     return bodyElements;
