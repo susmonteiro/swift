@@ -1552,6 +1552,7 @@ ProtocolDecl *ASTContext::getProtocol(KnownProtocolKind kind) const {
   case KnownProtocolKind::CxxMutableRandomAccessCollection:
   case KnownProtocolKind::CxxSet:
   case KnownProtocolKind::CxxSequence:
+  case KnownProtocolKind::CxxBorrowingSequence:
   case KnownProtocolKind::CxxUniqueSet:
   case KnownProtocolKind::CxxVector:
   case KnownProtocolKind::CxxSpan:
