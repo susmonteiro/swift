@@ -2309,6 +2309,22 @@ bool GatherUsesVisitor::visitUse(Operand *op) {
           continue;
         }
 
+        // Check if this is a move-only wrapper around a copyable type.
+        // For copyable types, treat like regular copyable - as liveness use
+        auto operandType = markedValue->getOperand()->getType();
+        if (operandType.isMoveOnlyWrapped()) {
+          auto unwrapped = operandType.removingMoveOnlyWrapper();
+          if (!unwrapped.isMoveOnly()) {
+            // It's a copyable type wrapped in move-only wrapper.
+            // Treat it as a liveness use, just like unwrapped copyable types
+            LLVM_DEBUG(llvm::dbgs() << "Found copy of wrapped copyable type. "
+                                       "Treating as liveness use! "
+                                    << *user);
+            useState.recordLivenessUse(user, leafRange);
+            continue;
+          }
+        }
+
         LLVM_DEBUG(llvm::dbgs()
                    << "Found mark must check [nocopy] error: " << *user);
         diagnosticEmitter.emitAddressDiagnosticNoCopy(markedValue, copyAddr);

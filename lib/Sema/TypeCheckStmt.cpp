@@ -3740,6 +3740,14 @@ private:
     SmallVector<ASTNode> bodyElements;
 
     auto elementPattern = stmt->getPattern();
+    if (isBorrowing) {
+      // We need to borrow the element to be able to use it in the loop.
+      auto *forVarDecl = elementPattern->getSingleVar();
+      if (forVarDecl) {
+        forVarDecl->setIntroducer(VarDecl::Introducer::Borrowing);
+      }
+    }
+
     auto *opaquePattern = new (ctx) OpaquePattern(elementPattern);
     auto *nextCallVarRef = new (ctx) DeclRefExpr(
         nextCallVar, DeclNameLoc(stmt->getForLoc()), /*Implicit=*/true);
@@ -3762,7 +3770,7 @@ private:
 
       // Create span[i] subscript
       auto *indexArgs = ArgumentList::createImplicit(
-          ctx, {Argument(SourceLoc(), Identifier(), indexRef)});
+          ctx, {Argument(elementPattern->getLoc(), Identifier(), indexRef)});
       element = SubscriptExpr::create(ctx, nextCallVarRef, indexArgs,
                                       ConcreteDeclRef(), /*implicit=*/true);
     }

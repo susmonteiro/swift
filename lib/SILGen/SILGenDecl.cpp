@@ -1488,6 +1488,69 @@ void BoolPatternInitialization::copyOrInitValueIntoImpl(SILGenFunction &SGF,
 }
 
 namespace {
+/// An initialization for a borrowing pattern binding (if let, if case, etc.)
+/// This handles borrowing similar to switch statement borrowing patterns.
+class BorrowBindingInitialization : public Initialization {
+  Pattern *pattern;
+  VarDecl *var;
+
+public:
+  BorrowBindingInitialization(Pattern *pattern, VarDecl *var)
+      : pattern(pattern), var(var) {
+    assert(var->getIntroducer() == VarDecl::Introducer::Borrowing);
+  }
+
+  bool isBorrow() override { return true; }
+
+  void copyOrInitValueInto(SILGenFunction &SGF, SILLocation loc,
+                           ManagedValue value, bool isInit) override {
+    auto bindValue = value;
+    bool wrappedWithGuaranteed = false;
+    bool originalTypeWasCopyable = !value.getType().isMoveOnly();
+
+    if (!bindValue.getType().isMoveOnly() && !SGF.B.hasManualOwnershipAttr()) {
+      if (bindValue.getType().isAddress()) {
+        bindValue = ManagedValue::forBorrowedAddressRValue(
+            SGF.B.createCopyableToMoveOnlyWrapperAddr(pattern,
+                                                      bindValue.getValue()));
+      } else {
+        if (!bindValue.getType().isTrivial(SGF.F)) {
+          // The wrapper expects a guaranteed SILValue.
+          // If we have an owned value, borrow it.
+          if (bindValue.isPlusOne(SGF)) {
+            bindValue = bindValue.borrow(SGF, loc);
+          }
+          bindValue = SGF.B.createGuaranteedCopyableToMoveOnlyWrapperValue(
+              loc, bindValue);
+          wrappedWithGuaranteed = true;
+        }
+      }
+    }
+
+    if (!bindValue.getType().isObject()) {
+      bindValue = SGF.B.createOpaqueBorrowBeginAccess(pattern, bindValue);
+    }
+
+    // Skip mark_unresolved for values wrapped with guaranteed wrappers.
+    if (bindValue.getType().isMoveOnly() && !originalTypeWasCopyable &&
+        !wrappedWithGuaranteed) {
+      bindValue = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+          pattern, bindValue,
+          MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign,
+          MarkUnresolvedNonCopyableValueInst::IsStrict);
+    }
+
+    SGF.VarLocs[var] = SILGenFunction::VarLoc(bindValue.getValue(),
+                                              SILAccessEnforcement::Unknown);
+  }
+
+  void finishInitialization(SILGenFunction &SGF) override {
+    // Nothing special needed
+  }
+};
+} // end anonymous namespace
+
+namespace {
 
 /// InitializationForPattern - A visitor for traversing a pattern, generating
 /// SIL code to allocate the declared variables, and generating an
@@ -1539,6 +1602,11 @@ struct InitializationForPattern
       // Unnamed parameters don't require any storage. Any value bound here will
       // just be dropped.
       return InitializationPtr(new BlackHoleInitialization());
+    }
+
+    if (P->getDecl()->getIntroducer() == VarDecl::Introducer::Borrowing) {
+      return InitializationPtr(
+          new BorrowBindingInitialization(P, P->getDecl()));
     }
 
     return SGF.emitInitializationForVarDecl(P->getDecl(), P->getDecl()->isLet(),
@@ -1726,6 +1794,13 @@ void SILGenFunction::emitPatternBinding(PatternBindingDecl *PBD, unsigned idx,
   // initialization as unfinished for DI to resolve.
   if (!initExpr) {
     return initialization->finishUninitialized(*this);
+  }
+
+  // In case of a borrowing binding, we do not want the scope to be limited to
+  // this function.
+  if (initialization.get()->isBorrow()) {
+    emitExprInto(initExpr, initialization.get());
+    return;
   }
 
   // Otherwise, an initial value expression was specified by the decl... emit it
