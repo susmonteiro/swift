@@ -1504,41 +1504,11 @@ public:
 
   void copyOrInitValueInto(SILGenFunction &SGF, SILLocation loc,
                            ManagedValue value, bool isInit) override {
-    auto bindValue = value;
-    bool wrappedWithGuaranteed = false;
-    bool originalTypeWasCopyable = !value.getType().isMoveOnly();
 
-    if (!bindValue.getType().isMoveOnly() && !SGF.B.hasManualOwnershipAttr()) {
-      if (bindValue.getType().isAddress()) {
-        bindValue = ManagedValue::forBorrowedAddressRValue(
-            SGF.B.createCopyableToMoveOnlyWrapperAddr(pattern,
-                                                      bindValue.getValue()));
-      } else {
-        if (!bindValue.getType().isTrivial(SGF.F)) {
-          // The wrapper expects a guaranteed SILValue.
-          // If we have an owned value, borrow it.
-          if (bindValue.isPlusOne(SGF)) {
-            bindValue = bindValue.borrow(SGF, loc);
-          }
-          bindValue = SGF.B.createGuaranteedCopyableToMoveOnlyWrapperValue(
-              loc, bindValue);
-          wrappedWithGuaranteed = true;
-        }
-      }
-    }
-
-    if (!bindValue.getType().isObject()) {
-      bindValue = SGF.B.createOpaqueBorrowBeginAccess(pattern, bindValue);
-    }
-
-    // Skip mark_unresolved for values wrapped with guaranteed wrappers.
-    if (bindValue.getType().isMoveOnly() && !originalTypeWasCopyable &&
-        !wrappedWithGuaranteed) {
-      bindValue = SGF.B.createMarkUnresolvedNonCopyableValueInst(
-          pattern, bindValue,
-          MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign,
-          MarkUnresolvedNonCopyableValueInst::IsStrict);
-    }
+    auto bindValue = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+        pattern, value,
+        MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign,
+        MarkUnresolvedNonCopyableValueInst::IsStrict);
 
     SGF.VarLocs[var] = SILGenFunction::VarLoc(bindValue.getValue(),
                                               SILAccessEnforcement::Unknown);

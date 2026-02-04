@@ -3740,7 +3740,7 @@ private:
     SmallVector<ASTNode> bodyElements;
 
     auto elementPattern = stmt->getPattern();
-    if (isBorrowing) {
+    if (isBorrowing && elementPattern->getType()->isNoncopyable()) {
       // We need to borrow the element to be able to use it in the loop.
       auto *forVarDecl = elementPattern->getSingleVar();
       if (forVarDecl) {
