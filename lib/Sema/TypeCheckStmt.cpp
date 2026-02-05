@@ -3786,7 +3786,7 @@ private:
     /* For a non-borrowing ForEachStmt,
      * for ... in ... where cond { body }
      * becomes:
-     * while ... { if cond then body else continue }
+     * while ... { if cond then body }
      */
     auto *whereClause = stmt->getWhere();
 
