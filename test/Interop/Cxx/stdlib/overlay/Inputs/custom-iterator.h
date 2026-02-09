@@ -365,6 +365,40 @@ public:
   }
 };
 
+struct SpecialDereferenceOperator {
+private:
+  int value;
+
+public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = int;
+  using pointer = int *;
+  using reference = const int &;
+  using difference_type = int;
+
+  SpecialDereferenceOperator(int value) : value(value) {}
+  SpecialDereferenceOperator(const SpecialDereferenceOperator &other) = default;
+
+  int operator*() const { return value; }
+
+  SpecialDereferenceOperator &operator++() {
+    value++;
+    return *this;
+  }
+  SpecialDereferenceOperator operator++(int) {
+    auto tmp = SpecialDereferenceOperator(value);
+    value++;
+    return tmp;
+  }
+
+  bool operator==(const SpecialDereferenceOperator &other) const {
+    return value == other.value;
+  }
+  bool operator!=(const SpecialDereferenceOperator &other) const {
+    return value != other.value;
+  }
+};
+
 #if __cplusplus >= 202002L
 struct ConstContiguousIterator {
 private:

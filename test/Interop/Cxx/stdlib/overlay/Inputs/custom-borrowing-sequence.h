@@ -30,4 +30,13 @@ public:
   const NonCop *end() const __attribute__((returns_nonnull)) { return &a[5]; }
 };
 
+struct SWIFT_NONCOPYABLE SpecialDereferenceOperatorSequence {
+  SpecialDereferenceOperator begin() const {
+    return SpecialDereferenceOperator(1);
+  }
+  SpecialDereferenceOperator end() const {
+    return SpecialDereferenceOperator(5);
+  }
+};
+
 #endif // TEST_INTEROP_CXX_STDLIB_INPUTS_CUSTOM_BORROWING_SEQUENCE_H

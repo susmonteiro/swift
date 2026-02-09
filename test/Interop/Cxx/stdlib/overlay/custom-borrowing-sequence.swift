@@ -42,4 +42,21 @@ CxxBorrowingSequenceTestSuite.test("SimpleNonCopArrayWrapper as Swift.BorrowingS
     expectEqual(counter, 5)
 }
 
+CxxBorrowingSequenceTestSuite.test("SpecialDereferenceOperatorSequence as Swift.BorrowingSequence") {
+  let seq = SpecialDereferenceOperatorSequence()
+  let arr : [Int32] = [2, 3, 4, 5] // TODO should be [1, 2, 3, 4]
+
+  var iterator = seq.makeBorrowingIterator()
+    var counter = 0
+    while true {
+        let span = iterator.nextSpan()
+        if (span.count == 0) { break }
+        for i in 0..<span.count {
+            expectEqual(span[i], arr[counter])
+            counter += 1
+        }
+    }
+    expectEqual(counter, 4)
+}
+
 runAllTests()

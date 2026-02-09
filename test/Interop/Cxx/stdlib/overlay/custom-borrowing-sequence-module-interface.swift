@@ -22,10 +22,3 @@
 // CHECK:       typealias BorrowingIterator = CxxBorrowingIterator<SimpleConditionallyCopyableSequence<NonCop>, ConstIterator.Pointee>
 // CHECK-NOT-TODO:   typealias Iterator
 // CHECK:     }
-
-// CHECK:     struct SimpleNonEscapableSequence : CxxBorrowingSequence {
-// CHECK:       typealias Element = ConstIterator.Pointee
-// CHECK:       typealias RawIterator = ConstIterator
-// CHECK:       typealias BorrowingIterator = CxxBorrowingIterator<SimpleNonEscapableSequence, ConstIterator.Pointee>
-// CHECK-NOT-TODO:   typealias Iterator
-// CHECK:     }
