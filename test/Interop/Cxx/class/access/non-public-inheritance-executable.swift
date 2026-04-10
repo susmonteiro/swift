@@ -2,9 +2,7 @@
 // Test that all accessible inherited methods can be called.
 //
 // RUN: split-file %s %t
-// RUN: %target-build-swift -module-name main %t/blessed.swift -I %S/Inputs -o %t/out -Xfrontend -cxx-interoperability-mode=default
-// RUN: %target-codesign %t/out
-// RUN: %target-run %t/out
+// RUN: %target-run-simple-swift-source(%t/blessed.swift -module-name main -I %S/Inputs -Xfrontend -cxx-interoperability-mode=default)
 //
 // REQUIRES: executable_test
 
