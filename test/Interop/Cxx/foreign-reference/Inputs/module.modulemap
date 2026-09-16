@@ -158,3 +158,8 @@ module LibkernOwnership {
 module CDeclFRT {
   header "cdecl.h"
 }
+
+module AnyForeignReferenceObject {
+  header "any-foreign-reference-object.h"
+  requires cplusplus
+}

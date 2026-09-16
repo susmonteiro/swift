@@ -5615,6 +5615,7 @@ public:
   }
 
   void checkRefToRawPointerInst(RefToRawPointerInst *AI) {
+    // TODO this should probably include FRT unless there's an alternative way to do this for FRTs
     require(AI->getOperand()->getType().isAnyClassReferenceType(),
             "ref-to-raw-pointer operand must be a class reference or"
             " NativeObject");

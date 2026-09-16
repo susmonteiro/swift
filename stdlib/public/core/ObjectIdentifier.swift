@@ -12,6 +12,8 @@
 
 #if !$Embedded
 
+public protocol AnyForeignReferenceObject {}
+
 /// A unique identifier for a class instance, actor instance, or metatype.
 ///
 /// This unique identifier is valid for comparisons only during the lifetime
@@ -55,6 +57,11 @@ public struct ObjectIdentifier: Sendable {
   /// - Parameter x: An instance of a class.
   @inlinable // trivial-implementation
   public init(_ x: AnyObject) {
+    self._value = Builtin.bridgeToRawPointer(x)
+  }
+
+  @inlinable // trivial-implementation
+  public init(_ x: AnyForeignReferenceObject) {
     self._value = Builtin.bridgeToRawPointer(x)
   }
 
