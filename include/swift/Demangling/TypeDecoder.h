@@ -581,6 +581,7 @@ void decodeRequirement(
               .Cases({"E", "e"}, LayoutConstraintKind::TrivialOfExactSize)
               .Cases({"M", "m"}, LayoutConstraintKind::TrivialOfAtMostSize)
               .Case("S", LayoutConstraintKind::TrivialStride)
+              .Case("A", LayoutConstraintKind::AnyReference)
               .Default(std::nullopt);
 
       if (!kind)

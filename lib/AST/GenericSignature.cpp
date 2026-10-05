@@ -739,6 +739,10 @@ Type GenericSignatureImpl::getUpperBound(Type type,
   // composition, but we might clear this below.
   bool hasExplicitAnyObject = requiresClass(type);
 
+  // Similarly for '& AnyReference'.
+  auto typeLayout = getLayoutConstraint(type);
+  bool hasExplicitAnyReference = typeLayout && typeLayout->isAnyReference();
+
   // Look for the most derived superclass that does not involve the type
   // being erased.
   Type superclass = getSuperclassBound(type);
@@ -749,10 +753,12 @@ Type GenericSignatureImpl::getUpperBound(Type type,
         break;
     } while ((superclass = superclass->getSuperclass()));
 
-    // If we're going to have a superclass, we can drop the '& AnyObject'.
+    // If we're going to have a superclass, we can drop the '& AnyObject'
+    // and '& AnyReference'.
     if (superclass) {
       types.push_back(getSugaredType(superclass));
       hasExplicitAnyObject = false;
+      hasExplicitAnyReference = false;
     }
   }
 
@@ -777,7 +783,15 @@ Type GenericSignatureImpl::getUpperBound(Type type,
       continue;
 
     if (proto->requiresClass())
-      hasExplicitAnyObject = false;
+      hasExplicitAnyObject = hasExplicitAnyReference = false;
+
+    // Drop '& AnyReference' if the protocol already implies it.
+    if (hasExplicitAnyReference) {
+      auto protoLayout = proto->getGenericSignature()->getLayoutConstraint(
+          proto->getSelfInterfaceType());
+      hasExplicitAnyReference =
+          !(protoLayout && protoLayout->impliesAnyReference());
+    }
 
     auto *baseType = proto->getDeclaredInterfaceType()->castTo<ProtocolType>();
 
@@ -817,7 +831,8 @@ Type GenericSignatureImpl::getUpperBound(Type type,
   }
 
   return ProtocolCompositionType::get(ctx, types, inverses,
-                                      hasExplicitAnyObject);
+                                      hasExplicitAnyObject,
+                                      hasExplicitAnyReference);
 }
 
 Type GenericSignatureImpl::getExistentialType(Type paramTy) const {

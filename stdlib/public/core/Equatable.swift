@@ -298,3 +298,53 @@ public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
 public func !== (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
   return !(lhs === rhs)
 }
+
+/// Returns a Boolean value indicating whether two references point to the
+/// same instance, including instances of C++ foreign reference types.
+///
+/// For C++ types that use multiple inheritance, a reference to a non-primary
+/// base class has a different address than a reference to the derived
+/// object, so the two don't compare as identical.
+@export(implementation)
+@_disfavoredOverload
+public func === <T: AnyReference>(lhs: T?, rhs: T?) -> Bool {
+  switch (lhs, rhs) {
+  case let (l?, r?):
+    return ObjectIdentifier(l) == ObjectIdentifier(r)
+  case (nil, nil):
+    return true
+  default:
+    return false
+  }
+}
+
+/// Returns a Boolean value indicating whether two references of possibly
+/// different types point to the same instance.
+@export(implementation)
+@_disfavoredOverload
+public func === <T: AnyReference, U: AnyReference>(lhs: T?, rhs: U?) -> Bool {
+  switch (lhs, rhs) {
+  case let (l?, r?):
+    return ObjectIdentifier(l) == ObjectIdentifier(r)
+  case (nil, nil):
+    return true
+  default:
+    return false
+  }
+}
+
+/// Returns a Boolean value indicating whether two references point to
+/// different instances, including instances of C++ foreign reference types.
+@export(implementation)
+@_disfavoredOverload
+public func !== <T: AnyReference>(lhs: T?, rhs: T?) -> Bool {
+  return !(lhs === rhs)
+}
+
+/// Returns a Boolean value indicating whether two references of possibly
+/// different types point to different instances.
+@export(implementation)
+@_disfavoredOverload
+public func !== <T: AnyReference, U: AnyReference>(lhs: T?, rhs: U?) -> Bool {
+  return !(lhs === rhs)
+}

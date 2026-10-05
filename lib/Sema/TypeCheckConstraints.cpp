@@ -1597,6 +1597,13 @@ void ConstraintSystem::print(raw_ostream &out) const {
   }
 }
 
+bool TypeChecker::castTypeContainsAnyReference(Type castType) {
+  return castType && castType->getCanonicalType().findIf([](Type type) {
+    auto *composition = type->getAs<ProtocolCompositionType>();
+    return composition && composition->hasExplicitAnyReference();
+  });
+}
+
 /// Determine the semantics of a checked cast operation.
 CheckedCastKind
 TypeChecker::typeCheckCheckedCast(Type fromType, Type toType,

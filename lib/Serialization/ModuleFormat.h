@@ -58,7 +58,7 @@ const uint16_t SWIFTMODULE_VERSION_MAJOR = 0;
 /// it just ensures a conflict if two people change the module format.
 /// Don't worry about adhering to the 80-column limit for this line.
 const uint16_t SWIFTMODULE_VERSION_MINOR =
-    1031; // added 'diagnose' SIL instruction
+    1032; // added AnyReference layout constraint and composition bit
 
 /// A standard hash seed used for all string hashes in a serialized module.
 ///
@@ -530,6 +530,7 @@ enum LayoutRequirementKind : uint8_t {
   NativeClass = 7,
   BridgeObject = 8,
   TrivialStride = 9,
+  AnyReference = 10,
 };
 using LayoutRequirementKindField = BCFixed<4>;
 
@@ -1493,6 +1494,7 @@ namespace decls_block {
   TYPE_LAYOUT(ProtocolCompositionTypeLayout,
     PROTOCOL_COMPOSITION_TYPE,
     BCFixed<1>,          // has AnyObject constraint
+    BCFixed<1>,          // has AnyReference constraint
     BCFixed<1>,          // has ~Copyable constraint
     BCFixed<1>,          // has ~Escapable constraint
     BCArray<TypeIDField> // protocols

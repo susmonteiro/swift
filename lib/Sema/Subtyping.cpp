@@ -186,11 +186,31 @@ bool swift::constraints::isSubtypeOfExistentialType(Type candidateType,
   auto layout = existentialType->getExistentialLayout();
 
   if (auto layoutConstraint = layout.getLayoutConstraint()) {
+    // With ObjC interop, class metatypes and class-constrained existential
+    // metatypes convert to AnyObject.
+    auto isObjCMetatypeToAnyObject = [&]() {
+      if (!existentialType->isAnyObject() ||
+          !candidateType->getASTContext().LangOpts.EnableObjCInterop)
+        return false;
+      if (auto meta = candidateType->getAs<MetatypeType>())
+        return meta->getInstanceType()->mayHaveSuperclass();
+      if (auto meta = candidateType->getAs<ExistentialMetatypeType>())
+        return meta->getInstanceType()->isClassExistentialType();
+      return false;
+    };
+
     if (layoutConstraint->isClass() &&
         !(candidateType->isClassExistentialType() ||
-          candidateType->mayHaveSuperclass()))
+          candidateType->mayHaveSuperclass() ||
+          isObjCMetatypeToAnyObject()))
       return false;
   }
+
+  if (layout.hasExplicitAnyReference &&
+      !(candidateType->satisfiesAnyReferenceConstraint() ||
+        (candidateType->isExistentialType() &&
+         candidateType->getExistentialLayout().requiresAnyReference())))
+    return false;
 
   if (layout.explicitSuperclass &&
       !isSubclassOf(candidateType, layout.explicitSuperclass))
@@ -991,6 +1011,7 @@ enum class Operation { Join, Meet };
 static void decomposeConstraintType(Type t,
                                     llvm::SmallSetVector<ProtocolDecl *, 4> &protos,
                                     Type &superclass, bool &anyObject,
+                                    bool &anyReference,
                                     InvertibleProtocolSet &invertible) {
   if (auto *protoTy = t->getAs<ProtocolType>()) {
     protos.insert(protoTy->getDecl());
@@ -1000,10 +1021,11 @@ static void decomposeConstraintType(Type t,
   } else if (auto *compositionTy = t->getAs<ProtocolCompositionType>()) {
     for (auto memberTy : compositionTy->getMembers()) {
       decomposeConstraintType(memberTy, protos, superclass,
-                              anyObject, invertible);
+                              anyObject, anyReference, invertible);
     }
 
     anyObject |= compositionTy->hasExplicitAnyObject();
+    anyReference |= compositionTy->hasExplicitAnyReference();
     invertible |= compositionTy->getInverses();
   } else if (t->getClassOrBoundGenericClass()) {
     superclass = t;
@@ -1022,18 +1044,23 @@ static Type existentialConstraintJoinMeetImpl(
   llvm::SmallSetVector<ProtocolDecl *, 4> lhsProtos;
   Type lhsSuperclass;
   bool lhsAnyObject = false;
+  bool lhsAnyReference = false;
   InvertibleProtocolSet lhsInverses;
-  decomposeConstraintType(lhs, lhsProtos, lhsSuperclass, lhsAnyObject, lhsInverses);
+  decomposeConstraintType(lhs, lhsProtos, lhsSuperclass, lhsAnyObject,
+                          lhsAnyReference, lhsInverses);
 
   llvm::SmallSetVector<ProtocolDecl *, 4> rhsProtos;
   Type rhsSuperclass;
   bool rhsAnyObject = false;
+  bool rhsAnyReference = false;
   InvertibleProtocolSet rhsInverses;
-  decomposeConstraintType(rhs, rhsProtos, rhsSuperclass, rhsAnyObject, rhsInverses);
+  decomposeConstraintType(rhs, rhsProtos, rhsSuperclass, rhsAnyObject,
+                          rhsAnyReference, rhsInverses);
 
   SmallVector<Type, 4> members;
   Type superclass;
   bool anyObject = false;
+  bool anyReference = false;
   InvertibleProtocolSet inverses = lhsInverses;
   if (op == Operation::Join) {
     // Intersect all inherited protocols.
@@ -1069,6 +1096,12 @@ static Type existentialConstraintJoinMeetImpl(
     }
 
     anyObject = lhsAnyObject && rhsAnyObject;
+    // Only introduce AnyReference if one side spelled it explicitly, so the
+    // join of two class-constrained existentials doesn't change. AnyObject
+    // and a superclass imply AnyReference.
+    anyReference = (lhsAnyReference || rhsAnyReference) &&
+                   (lhsAnyReference || lhsAnyObject || lhsSuperclass) &&
+                   (rhsAnyReference || rhsAnyObject || rhsSuperclass);
     inverses.insertAll(rhsInverses);
   } else {
     // Take the union of all protocols.
@@ -1098,6 +1131,7 @@ static Type existentialConstraintJoinMeetImpl(
     }
 
     anyObject = lhsAnyObject || rhsAnyObject;
+    anyReference = lhsAnyReference || rhsAnyReference;
     inverses.intersect(rhsInverses);
 
     // FIXME: Check for conflicts
@@ -1106,10 +1140,11 @@ static Type existentialConstraintJoinMeetImpl(
   if (superclass)
     members.push_back(superclass);
 
-  if (members.empty() && inverses.empty() && !anyObject)
+  if (members.empty() && inverses.empty() && !anyObject && !anyReference)
     return Type();
 
-  return ProtocolCompositionType::get(ctx, members, inverses, anyObject);
+  return ProtocolCompositionType::get(ctx, members, inverses, anyObject,
+                                      anyReference);
 }
 
 static Type superclassJoinMeetImpl(Operation op, Type lhs, Type rhs) {

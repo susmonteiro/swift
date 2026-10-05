@@ -516,6 +516,10 @@ bool isCanonicalCompleteTypeMetadataStaticallyAddressable(IRGenModule &IGM,
 /// Should requests for the given type's metadata be cached?
 bool shouldCacheTypeMetadataAccess(IRGenModule &IGM, CanType type);
 
+/// Return \p type with every explicit AnyReference member of a protocol
+/// composition removed, since AnyReference does not affect representation.
+CanType eraseAnyReference(CanType type);
+
 enum SpecializedMetadataUsageIsOnlyFromAccessor : bool {
   /// The metadata must be accessed through an accessor function so that it can
   /// be initialized.

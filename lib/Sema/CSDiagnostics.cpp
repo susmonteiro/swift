@@ -485,7 +485,10 @@ bool RequirementFailure::diagnoseAsError() {
     case RequirementKind::Conformance:
     case RequirementKind::Layout:
       emitDiagnostic(diag::type_does_not_conform_in_opaque_return, namingDecl,
-                     lhs, rhs, rhs->isAnyObject());
+                     lhs, rhs,
+                     rhs->isAnyObject() ? 1
+                     : isAnyReferenceRequirement() ? 2
+                                                   : 0);
       break;
 
     case RequirementKind::Superclass:
@@ -633,6 +636,33 @@ bool MissingConformanceFailure::diagnoseAsError() {
   auto nonConformingType = getLHS();
   auto protocolType = getRHS();
 
+  // The generic AnyReference overloads of '===' and '!==' fail with an
+  // AnyReference requirement when comparing functions; produce the same
+  // tailored diagnostic as for the AnyObject overloads.
+  if (isAnyReferenceRequirement() &&
+      nonConformingType->lookThroughAllOptionalTypes()->is<AnyFunctionType>()) {
+    if (auto *expr = getAsExpr(anchor)) {
+      auto *binaryOp = dyn_cast<BinaryExpr>(expr);
+      if (!binaryOp) {
+        binaryOp = dyn_cast_or_null<BinaryExpr>(findParentExpr(expr));
+        if (binaryOp && binaryOp->getFn() != expr)
+          binaryOp = nullptr;
+      }
+      if (binaryOp) {
+        auto name = getOperatorName(binaryOp->getFn());
+        if (name && (name->is("===") || name->is("!=="))) {
+          emitDiagnosticAt(binaryOp->getLoc(),
+                           diag::cannot_reference_compare_types, name->str(),
+                           getType(binaryOp->getLHS()),
+                           getType(binaryOp->getRHS()))
+              .highlight(binaryOp->getLHS()->getSourceRange())
+              .highlight(binaryOp->getRHS()->getSourceRange());
+          return true;
+        }
+      }
+    }
+  }
+
   // If this is a requirement of a pattern-matching operator,
   // let's see whether argument already has a fix associated
   // with it and if so skip conformance error, otherwise we'd
@@ -725,7 +755,28 @@ bool MissingConformanceFailure::diagnoseAsError() {
 
   // If none of the special cases could be diagnosed,
   // let's fallback to the most general diagnostic.
-  return RequirementFailure::diagnoseAsError();
+  if (!RequirementFailure::diagnoseAsError())
+    return false;
+
+  // An existential like 'any AnyReference' isn't a reference itself, but it
+  // would have been opened if it weren't wrapped in an optional.
+  if (isAnyReferenceRequirement() && nonConformingType->isExistentialType() &&
+      nonConformingType->getExistentialLayout().requiresAnyReference()) {
+    auto *expr = getAsExpr(anchor);
+    auto *apply =
+        expr ? dyn_cast_or_null<ApplyExpr>(findParentExpr(expr)) : nullptr;
+    if (apply && apply->getFn() == expr &&
+        llvm::any_of(*apply->getArgs(), [&](const Argument &arg) {
+          auto argTy = getType(arg.getExpr())->getWithoutSpecifierType();
+          return argTy->getOptionalObjectType() &&
+                 argTy->lookThroughAllOptionalTypes()->isEqual(
+                     nonConformingType);
+        }))
+      emitDiagnostic(diag::any_reference_existential_not_opened,
+                     nonConformingType);
+  }
+
+  return true;
 }
 
 bool MissingConformanceFailure::diagnoseTypeCannotConform(

@@ -530,3 +530,15 @@ async_MainTQ0_ ---> (1) await resume partial function for async main entry point
 async_MainTu ---> async function pointer to async main entry point
 _async_MainTY1_ ---> (2) suspend resume partial function for async main entry point
 $s1AyycfcySiGfD1BV ---> $s1AyycfcySiGfD1BV
+$s1m1fyyxRlzBlF ---> m.f<A where A: _BridgeObject>(A) -> ()
+$s1m1fyyxRlzS63_lF ---> m.f<A where A: _TrivialStride(64)>(A) -> ()
+$s1m1fyyxRlzAlF ---> m.f<A where A: AnyReference>(A) -> ()
+$s1m1fyxxRlzAlF ---> m.f<A where A: AnyReference>(A) -> A
+$s1m1kyyypRlsA_XPF ---> m.k(any Any<Self: AnyReference>) -> ()
+$s1m1kyyAA1P_pRlsA_XPF ---> m.k(any m.P<Self: AnyReference>) -> ()
+$s1m1kyyypRlsA_XPXpF ---> m.k(any Any<Self: AnyReference>.Type) -> ()
+$s1M2f1yyxAA2PBRz1BRmzAlF ---> M.f1<A where A: M.PB, A.B: AnyReference>(A) -> ()
+$s1M2f2yyxAA2PCRz1C_1BRMzAlF ---> M.f2<A where A: M.PC, A.C.B: AnyReference>(A) -> ()
+$s1M2g2yxxRlzAAA1PRzlF ---> M.g2<A where A: AnyReference, A: M.P>(A) -> A
+$s1M2f5yyxxQpRvzRlzAlF ---> M.f5<each A where A: AnyReference>(repeat A) -> ()
+$s1M3BoxV2ppAA2PP_pRlsA_Si1EAaEPRtsXPvg ---> M.Box.pp.getter : any M.PP<Self: AnyReference, Self.M.PP.E == Swift.Int>

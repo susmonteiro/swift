@@ -318,6 +318,17 @@ public typealias AnyObject = Builtin.AnyObject
 public typealias AnyObject = Builtin.AnyObject
 #endif
 
+/// The protocol to which all reference types implicitly conform: every type
+/// that conforms to `AnyObject`, and every imported C++ foreign reference
+/// type.
+///
+/// `AnyReference` is a compile-time constraint only and has no runtime
+/// representation, so dynamic casts to it are rejected. A cast through an
+/// unconstrained generic parameter that is bound to `any AnyReference` (for
+/// example, `x as? T`) behaves like a cast to `Any` and can succeed for
+/// values that aren't references, so avoid such casts.
+public typealias AnyReference = Builtin.AnyReference
+
 /// The protocol to which all class types implicitly conform.
 ///
 /// You can use the `AnyClass` protocol as the concrete type for an instance of

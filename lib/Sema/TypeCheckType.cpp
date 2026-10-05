@@ -6750,11 +6750,14 @@ TypeResolver::resolveCompositionType(CompositionTypeRepr *repr,
     for (auto ip : inverses) {
       auto kp = getKnownProtocolKind(ip);
 
-      if (layout.requiresClass()) {
+      // Classes and foreign reference types are always Copyable and
+      // Escapable.
+      if (layout.requiresClass() || layout.hasExplicitAnyReference) {
         auto superclass = layout.explicitSuperclass;
+        unsigned kind = superclass ? 0 : layout.requiresClass() ? 1 : 2;
         diagnose(repr->getStartLoc(),
                  diag::inverse_with_class_constraint,
-                 !superclass,
+                 kind,
                  getProtocolName(kp),
                  superclass);
         IsInvalid = true;
@@ -7302,6 +7305,14 @@ private:
     // `Any` and `AnyObject` are always exempt from `any` syntax.
     if (constraintTy->isAny() || constraintTy->isAnyObject()) {
       return false;
+    }
+
+    // So is a plain `AnyReference`.
+    if (auto *composition = constraintTy->getAs<ProtocolCompositionType>()) {
+      if (composition->hasExplicitAnyReference() &&
+          composition->getMembers().empty() &&
+          !composition->hasInverse())
+        return false;
     }
 
     // A missing `any` or `some` is always diagnosed if this feature not

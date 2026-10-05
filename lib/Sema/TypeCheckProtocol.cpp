@@ -2734,6 +2734,20 @@ checkIndividualConformance(NormalProtocolConformance *conformance) {
             req.getProtocolDecl()->getName());
           conformance->setInvalid();
         }
+
+        // AnyReference requirements are erased at runtime too, as are
+        // AnyReference constraints in types (e.g. 'T == any AnyReference').
+        bool isLayout = req.getKind() == RequirementKind::Layout;
+        if (isLayout ? req.getLayoutConstraint()->isAnyReference()
+                     : (TypeChecker::castTypeContainsAnyReference(
+                            req.getFirstType()) ||
+                        TypeChecker::castTypeContainsAnyReference(
+                            req.getSecondType()))) {
+          Context.Diags.diagnose(
+            ComplainLoc, diag::any_reference_conditional_conformance,
+            Proto->getName(), req.getFirstType(), !isLayout);
+          conformance->setInvalid();
+        }
       }
     }
   }

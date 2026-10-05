@@ -1426,6 +1426,12 @@ Pattern *TypeChecker::coercePatternToType(
           tryRewritePattern);
     }
 
+    if (TypeChecker::castTypeContainsAnyReference(IP->getCastType())) {
+      diags.diagnose(IP->getLoc(), diag::any_reference_cast,
+                     IP->getCastType());
+      return nullptr;
+    }
+
     CheckedCastKind castKind = TypeChecker::typeCheckCheckedCast(
         type, IP->getCastType(),
         type->hasError() ? CheckedCastContextKind::None

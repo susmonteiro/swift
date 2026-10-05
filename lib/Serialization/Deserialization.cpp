@@ -1455,6 +1455,7 @@ getActualLayoutConstraintKind(uint64_t rawKind) {
   CASE(UnknownLayout)
   CASE(BridgeObject)
   CASE(TrivialStride)
+  CASE(AnyReference)
   }
 #undef CASE
 
@@ -8449,12 +8450,14 @@ DESERIALIZE_TYPE(GENERIC_TYPE_PARAM_TYPE)(
 
 Expected<Type> DESERIALIZE_TYPE(PROTOCOL_COMPOSITION_TYPE)(
     ModuleFile &MF, SmallVectorImpl<uint64_t> &scratch, StringRef blobData) {
-  bool hasExplicitAnyObject, hasInverseCopyable, hasInverseEscapable;
+  bool hasExplicitAnyObject, hasExplicitAnyReference, hasInverseCopyable,
+      hasInverseEscapable;
   ArrayRef<uint64_t> rawProtocolIDs;
 
   decls_block::ProtocolCompositionTypeLayout::readRecord(
       scratch,
       hasExplicitAnyObject,
+      hasExplicitAnyReference,
       hasInverseCopyable,
       hasInverseEscapable,
       rawProtocolIDs);
@@ -8474,7 +8477,8 @@ Expected<Type> DESERIALIZE_TYPE(PROTOCOL_COMPOSITION_TYPE)(
     inverses.insert(InvertibleProtocolKind::Escapable);
 
   return ProtocolCompositionType::get(MF.getContext(), protocols, inverses,
-                                      hasExplicitAnyObject);
+                                      hasExplicitAnyObject,
+                                      hasExplicitAnyReference);
 }
 
 Expected<Type> DESERIALIZE_TYPE(PARAMETERIZED_PROTOCOL_TYPE)(

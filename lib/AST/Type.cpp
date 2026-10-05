@@ -150,7 +150,8 @@ bool TypeBase::isMarkerExistential() {
     return false;
 
   auto layout = constraint->getExistentialLayout();
-  if (layout.hasExplicitAnyObject ||
+  // AnyReference is not a marker protocol.
+  if (layout.hasExplicitAnyObject || layout.hasExplicitAnyReference ||
       layout.explicitSuperclass) {
     return false;
   }
@@ -419,6 +420,7 @@ ExistentialLayout::ExistentialLayout(CanProtocolType type) {
   auto *protoDecl = type->getDecl();
 
   hasExplicitAnyObject = false;
+  hasExplicitAnyReference = false;
   containsObjCProtocol = protoDecl->isObjC();
   containsSwiftProtocol = (!protoDecl->isObjC() &&
                            !protoDecl->isMarkerProtocol());
@@ -432,6 +434,7 @@ ExistentialLayout::ExistentialLayout(CanProtocolType type) {
 
 ExistentialLayout::ExistentialLayout(CanProtocolCompositionType type) {
   hasExplicitAnyObject = type->hasExplicitAnyObject();
+  hasExplicitAnyReference = type->hasExplicitAnyReference();
   containsObjCProtocol = false;
   containsSwiftProtocol = false;
 
@@ -1293,7 +1296,8 @@ Type TypeBase::stripConcurrency(bool recurse, bool dropGlobalActor,
       return ProtocolCompositionType::get(
           getASTContext(), newMembers,
           protocolCompositionType->getInverses(),
-          protocolCompositionType->hasExplicitAnyObject());
+          protocolCompositionType->hasExplicitAnyObject(),
+          protocolCompositionType->hasExplicitAnyReference());
     }
 
     return Type(this);
@@ -1420,6 +1424,46 @@ LayoutConstraint ExistentialLayout::getLayoutConstraint() const {
   }
 
   return LayoutConstraint();
+}
+
+bool ExistentialLayout::requiresAnyReference() const {
+  return hasExplicitAnyReference || requiresClass() ||
+         llvm::any_of(getProtocols(), [](ProtocolDecl *proto) {
+           auto layout = proto->getGenericSignature()->getLayoutConstraint(
+               proto->getSelfInterfaceType());
+           return layout && layout->impliesAnyReference();
+         });
+}
+
+CanType swift::getExistentialWithoutAnyReference(CanType type) {
+  if (auto EMT = dyn_cast<ExistentialMetatypeType>(type)) {
+    auto instance = getExistentialWithoutAnyReference(EMT.getInstanceType());
+    if (!instance)
+      return CanType();
+
+    std::optional<MetatypeRepresentation> repr;
+    if (EMT->hasRepresentation())
+      repr = EMT->getRepresentation();
+    return ExistentialMetatypeType::get(instance, repr)->getCanonicalType();
+  }
+
+  CanType constraint = type;
+  bool isExistential = false;
+  if (auto ET = dyn_cast<ExistentialType>(type)) {
+    constraint = ET.getConstraintType();
+    isExistential = true;
+  }
+
+  auto PCT = dyn_cast<ProtocolCompositionType>(constraint);
+  if (!PCT || !PCT->hasExplicitAnyReference())
+    return CanType();
+
+  Type newConstraint = ProtocolCompositionType::get(
+      PCT->getASTContext(), PCT->getMembers(), PCT->getInverses(),
+      PCT->hasExplicitAnyObject(), /*HasExplicitAnyReference=*/false);
+  if (isExistential)
+    return ExistentialType::get(newConstraint)->getCanonicalType();
+  return newConstraint->getCanonicalType();
 }
 
 bool TypeBase::isExistentialWithError() {
@@ -1921,7 +1965,8 @@ static void addProtocols(Type T,
                          ParameterizedProtocolMap &Parameterized,
                          Type &Superclass,
                          InvertibleProtocolSet &Inverses,
-                         bool &HasExplicitAnyObject) {
+                         bool &HasExplicitAnyObject,
+                         bool &HasExplicitAnyReference) {
   if (auto Proto = T->getAs<ProtocolType>()) {
     Protocols.push_back(Proto->getDecl());
     return;
@@ -1930,9 +1975,10 @@ static void addProtocols(Type T,
   if (auto PC = T->getAs<ProtocolCompositionType>()) {
     Inverses.insertAll(PC->getInverses());
     HasExplicitAnyObject |= PC->hasExplicitAnyObject();
+    HasExplicitAnyReference |= PC->hasExplicitAnyReference();
     for (auto P : PC->getMembers()) {
       addProtocols(P, Protocols, Parameterized, Superclass, Inverses,
-                   HasExplicitAnyObject);
+                   HasExplicitAnyObject, HasExplicitAnyReference);
     }
     return;
   }
@@ -2220,7 +2266,8 @@ CanType TypeBase::computeCanonicalType() {
     const ASTContext &C = CanProtos[0]->getASTContext();
     Type Composition = ProtocolCompositionType::get(C, CanProtos,
                                                     PCT->getInverses(),
-                                                    PCT->hasExplicitAnyObject());
+                                                    PCT->hasExplicitAnyObject(),
+                                                    PCT->hasExplicitAnyReference());
     Result = Composition.getPointer();
     break;
   }
@@ -2649,6 +2696,19 @@ bool TypeBase::satisfiesClassConstraint() {
   if (isForeignReferenceType())
     return false;
   return mayHaveSuperclass() || isObjCExistentialType();
+}
+
+bool TypeBase::satisfiesAnyReferenceConstraint() {
+  // Every class is either class-constrained or a foreign reference type.
+  // Note: don't use TypeBase::isForeignReferenceType() here, since it looks
+  // through optionals.
+  if (getClassOrBoundGenericClass() || satisfiesClassConstraint())
+    return true;
+
+  auto archetype = getAs<ArchetypeType>();
+  auto layout = archetype ? archetype->getLayoutConstraint()
+                          : LayoutConstraint();
+  return layout && layout->impliesAnyReference();
 }
 
 Type TypeBase::getSuperclass(bool useArchetypes) {
@@ -4375,8 +4435,10 @@ CanExistentialType CanExistentialType::get(CanType constraint) {
 void ProtocolCompositionType::Profile(llvm::FoldingSetNodeID &ID,
                                       ArrayRef<Type> Members,
                                       InvertibleProtocolSet Inverses,
-                                      bool HasExplicitAnyObject) {
+                                      bool HasExplicitAnyObject,
+                                      bool HasExplicitAnyReference) {
   ID.AddBoolean(HasExplicitAnyObject);
+  ID.AddBoolean(HasExplicitAnyReference);
   for (auto T : Members)
     ID.AddPointer(T.getPointer());
   for (auto IP : Inverses)
@@ -4476,7 +4538,8 @@ Type ProtocolCompositionType::withoutMarkerProtocols() const {
     return !(P && P->getDecl()->isMarkerProtocol());
   });
 
-  if (newMembers.size() == getMembers().size())
+  // AnyReference is erased at runtime just like marker protocols.
+  if (newMembers.size() == getMembers().size() && !hasExplicitAnyReference())
     return Type(const_cast<ProtocolCompositionType *>(this));
 
   return ProtocolCompositionType::get(getASTContext(), newMembers,
@@ -4486,16 +4549,23 @@ Type ProtocolCompositionType::withoutMarkerProtocols() const {
 Type ProtocolCompositionType::get(const ASTContext &C,
                                   ArrayRef<Type> Members,
                                   InvertibleProtocolSet Inverses,
-                                  bool HasExplicitAnyObject) {
-  // Fast path for 'AnyObject', 'Any', and '~Copyable'.
+                                  bool HasExplicitAnyObject,
+                                  bool HasExplicitAnyReference) {
+  // AnyObject implies AnyReference; never store both.
+  if (HasExplicitAnyObject)
+    HasExplicitAnyReference = false;
+
+  // Fast path for 'AnyObject', 'AnyReference', 'Any', and '~Copyable'.
   if (Members.empty()) {
-    return build(C, Members, Inverses, HasExplicitAnyObject);
+    return build(C, Members, Inverses, HasExplicitAnyObject,
+                 HasExplicitAnyReference);
   }
 
-  // Whether this composition has an `AnyObject` or protocol-inverse member
-  // that is not reflected in the Members array.
+  // Whether this composition has an `AnyObject`, `AnyReference` or
+  // protocol-inverse member that is not reflected in the Members array.
   auto haveExtraMember = [&]{
-    return HasExplicitAnyObject || !Inverses.empty();
+    return HasExplicitAnyObject || HasExplicitAnyReference ||
+           !Inverses.empty();
   };
 
   // If there's a single member and no layout constraint or inverses,
@@ -4506,7 +4576,8 @@ Type ProtocolCompositionType::get(const ASTContext &C,
 
   for (Type t : Members) {
     if (!t->isCanonical())
-      return build(C, Members, Inverses, HasExplicitAnyObject);
+      return build(C, Members, Inverses, HasExplicitAnyObject,
+                   HasExplicitAnyReference);
   }
 
   Type Superclass;
@@ -4514,7 +4585,7 @@ Type ProtocolCompositionType::get(const ASTContext &C,
   ParameterizedProtocolMap Parameterized;
   for (Type t : Members) {
     addProtocols(t, Protocols, Parameterized, Superclass,
-                 Inverses, HasExplicitAnyObject);
+                 Inverses, HasExplicitAnyObject, HasExplicitAnyReference);
   }
 
   // Form the set of canonical component types.
@@ -4545,11 +4616,22 @@ Type ProtocolCompositionType::get(const ASTContext &C,
     CanTypes.push_back(proto->getDeclaredInterfaceType());
   }
 
+  // AnyObject, a superclass or a class-constrained protocol makes AnyReference
+  // redundant. (A protocol whose 'Self' is constrained to AnyReference does
+  // not, like for AnyObject.)
+  if (HasExplicitAnyReference &&
+      (HasExplicitAnyObject || Superclass ||
+       llvm::any_of(Protocols, [](ProtocolDecl *proto) {
+         return proto->requiresClass();
+       })))
+    HasExplicitAnyReference = false;
+
   // If one member remains with no extra members, return that type.
   if (CanTypes.size() == 1 && !haveExtraMember())
     return CanTypes.front();
 
-  return build(C, CanTypes, Inverses, HasExplicitAnyObject);
+  return build(C, CanTypes, Inverses, HasExplicitAnyObject,
+               HasExplicitAnyReference);
 }
 
 CanType ProtocolCompositionType::getMinimalCanonicalType() const {
@@ -5321,8 +5403,9 @@ bool TypeBase::hasSimpleTypeRepr() const {
       ++memberCount;
     }
 
-    // And finally, AnyObject.
-    if (composition->hasExplicitAnyObject())
+    // And finally, AnyObject or AnyReference.
+    if (composition->hasExplicitAnyObject() ||
+        composition->hasExplicitAnyReference())
       ++memberCount;
 
     // Almost always, this will be > 1.

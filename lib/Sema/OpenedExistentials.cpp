@@ -20,6 +20,7 @@
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/ConformanceLookup.h"
 #include "swift/AST/Decl.h"
+#include "swift/AST/ExistentialLayout.h"
 #include "swift/AST/GenericEnvironment.h"
 #include "swift/AST/Types.h"
 #include "swift/AST/TypeCheckRequests.h"
@@ -706,6 +707,14 @@ existentialSatisfiesRequirements(CanGenericSignature genericSig,
     if (lookupExistentialConformance(existentialTy, proto).isInvalid())
       return false;
   }
+
+  // 'any AnyReference' is not itself a reference, so it must be opened to
+  // satisfy an AnyReference requirement, if the opened archetype would.
+  auto layout = genericSig->getLayoutConstraint(genericParam);
+  if (layout && layout->isAnyReference() &&
+      !existentialTy->satisfiesAnyReferenceConstraint() &&
+      existentialTy->getExistentialLayout().requiresAnyReference())
+    return false;
 
   return true;
 }

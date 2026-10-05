@@ -218,6 +218,9 @@ void PropertyMap::addLayoutProperty(
       recordRelation(key, ruleID, oldProperty, System, debug);
     }
 
+    // Refine an AnyReference layout to Class or NativeClass.
+    if (props->Layout->isAnyReference())
+      props->Layout = newLayout;
     props->LayoutRule = ruleID;
   } else {
     ABORT("Arbitrary intersection of layout requirements isn't supported yet");
@@ -710,11 +713,14 @@ void PropertyMap::checkConcreteTypeRequirements() {
         }
       }
 
-      // If the concrete type does not satisfy a class layout constraint and
-      // we have such a layout requirement, we have a conflict.
-      if (!concreteType.getConcreteType()->satisfiesClassConstraint() &&
-          props->LayoutRule &&
-          props->Layout->isClass()) {
+      // If the concrete type does not satisfy a class (or AnyReference) layout
+      // constraint and we have such a layout requirement, we have a conflict.
+      if (props->LayoutRule &&
+          ((props->Layout->isClass() &&
+            !concreteType.getConcreteType()->satisfiesClassConstraint()) ||
+           (props->Layout->isAnyReference() &&
+            !concreteType.getConcreteType()
+                 ->satisfiesAnyReferenceConstraint()))) {
         if (checkRulePairOnce(concreteTypeRule, *props->LayoutRule))
           System.recordConflict(concreteTypeRule, *props->LayoutRule);
       }
@@ -747,6 +753,16 @@ void PropertyMap::checkConcreteTypeRequirements() {
           auto layout =
               LayoutConstraint::getLayoutConstraint(
                 layoutConstraint, Context.getASTContext());
+          auto layoutSymbol = Symbol::forLayout(layout, Context);
+
+          recordRelation(props->getKey(), concreteTypeRule,
+                         layoutSymbol, System, debug);
+        } else if (concreteType.getConcreteType()
+                       ->satisfiesAnyReferenceConstraint()) {
+          // A rule (T.[concrete: C] => T) where C is a foreign reference type
+          // induces a rule (T.[layout: AnyReference] => T).
+          auto layout = LayoutConstraint::getLayoutConstraint(
+              LayoutConstraintKind::AnyReference, Context.getASTContext());
           auto layoutSymbol = Symbol::forLayout(layout, Context);
 
           recordRelation(props->getKey(), concreteTypeRule,

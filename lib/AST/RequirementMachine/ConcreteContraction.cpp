@@ -437,8 +437,10 @@ ConcreteContraction::substRequirement(const Requirement &req) const {
   case RequirementKind::Layout: {
     auto substFirstType = substTypeParameter(firstType, Position::Other);
     if (!substFirstType->isTypeParameter() &&
-        !substFirstType->satisfiesClassConstraint() &&
-        req.getLayoutConstraint()->isClass()) {
+        ((req.getLayoutConstraint()->isClass() &&
+          !substFirstType->satisfiesClassConstraint()) ||
+         (req.getLayoutConstraint()->isAnyReference() &&
+          !substFirstType->satisfiesAnyReferenceConstraint()))) {
       // If the concrete type doesn't satisfy the layout constraint, produce
       // a better diagnostic and only substitute the parent type by pretending
       // we have a same-type requirement here.

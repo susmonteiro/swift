@@ -2259,7 +2259,13 @@ private:
       // protocol composition, the other being only the protocol), In that case,
       // emit debug info as only the protocol type.
       auto CanTy = BaseTy->getCanonicalType();
-      if (!isa<ProtocolCompositionType>(CanTy)) {
+      // Likewise for a sugared composition with an 'AnyReference' member,
+      // whose members may have the same mangled name as the composition.
+      if (!isa<ProtocolCompositionType>(CanTy) ||
+          llvm::any_of(CompTy->getMembers(), [](Type member) {
+            auto *memberComp = member->getAs<ProtocolCompositionType>();
+            return memberComp && memberComp->hasExplicitAnyReference();
+          })) {
         return getOrCreateDesugaredType(CanTy, DbgTy);
       }
 

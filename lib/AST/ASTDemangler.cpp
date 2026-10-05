@@ -942,13 +942,21 @@ Type ASTBuilder::createConstrainedExistentialType(
     ArrayRef<BuiltInverseRequirement> inverseRequirements) {
   llvm::SmallMapVector<AssociatedTypeDecl *, Type, 2> primaryAssociatedTypes;
   llvm::SmallDenseSet<AssociatedTypeDecl *> claimed;
+  bool hasExplicitAnyReference = false;
 
   for (const auto &req : constraints) {
     switch (req.getKind()) {
+    case RequirementKind::Layout:
+      // 'Self: AnyReference' is how `any P & AnyReference` is mangled.
+      if (req.getFirstType()->is<GenericTypeParamType>() &&
+          req.getLayoutConstraint()->isAnyReference()) {
+        hasExplicitAnyReference = true;
+        continue;
+      }
+      [[fallthrough]];
     case RequirementKind::SameShape:
     case RequirementKind::Conformance:
     case RequirementKind::Superclass:
-    case RequirementKind::Layout:
       break;
 
     case RequirementKind::SameType: {
@@ -1174,7 +1182,7 @@ Type ASTBuilder::createConstrainedExistentialType(
   }
 
   return ExistentialType::get(ProtocolCompositionType::get(
-      Ctx, members, inverses, hasExplicitAnyObject));
+      Ctx, members, inverses, hasExplicitAnyObject, hasExplicitAnyReference));
 }
 
 Type ASTBuilder::createSymbolicExtendedExistentialType(NodePointer shapeNode,

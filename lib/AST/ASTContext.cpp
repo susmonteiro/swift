@@ -1438,6 +1438,17 @@ CanType ASTContext::getAnyObjectType() const {
       ->getCanonicalType();
 }
 
+CanType ASTContext::getAnyReferenceConstraint() const {
+  return CanType(ProtocolCompositionType::get(
+      *this, {}, /*Inverses=*/{}, /*HasExplicitAnyObject=*/false,
+      /*HasExplicitAnyReference=*/true));
+}
+
+CanType ASTContext::getAnyReferenceType() const {
+  return ExistentialType::get(getAnyReferenceConstraint())
+      ->getCanonicalType();
+}
+
 #define KNOWN_SDK_TYPE_DECL(MODULE, NAME, DECLTYPE, GENERIC_ARGS) \
 DECLTYPE *ASTContext::get##NAME##Decl() const { \
   if (!getImpl().NAME##Decl) { \
@@ -4920,13 +4931,18 @@ ClassType *ClassType::get(ClassDecl *D, Type Parent, const ASTContext &C) {
 ProtocolCompositionType *
 ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
                                InvertibleProtocolSet Inverses,
-                               bool HasExplicitAnyObject) {
-  assert(Members.size() != 1 || HasExplicitAnyObject || !Inverses.empty());
+                               bool HasExplicitAnyObject,
+                               bool HasExplicitAnyReference) {
+  assert(Members.size() != 1 || HasExplicitAnyObject ||
+         HasExplicitAnyReference || !Inverses.empty());
+  assert(!(HasExplicitAnyObject && HasExplicitAnyReference) &&
+         "AnyObject implies AnyReference; never store both");
 
   // Check to see if we've already seen this protocol composition before.
   void *InsertPos = nullptr;
   llvm::FoldingSetNodeID ID;
-  ProtocolCompositionType::Profile(ID, Members, Inverses, HasExplicitAnyObject);
+  ProtocolCompositionType::Profile(ID, Members, Inverses, HasExplicitAnyObject,
+                                   HasExplicitAnyReference);
 
   bool isCanonical = true;
   RecursiveTypeProperties properties;
@@ -4951,6 +4967,7 @@ ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
                                                   Members,
                                                   Inverses,
                                                   HasExplicitAnyObject,
+                                                  HasExplicitAnyReference,
                                                   properties);
   C.getImpl().getArena(arena).ProtocolCompositionTypes.InsertNode(
       compTy, InsertPos);

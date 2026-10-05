@@ -696,6 +696,13 @@ EXPERIMENTAL_FEATURE(TargetAttribute, true)
 /// Enable distributed actors in Embedded Swift.
 EXPERIMENTAL_FEATURE(EmbeddedDistributed, false)
 
+/// Support for the `Builtin.AnyReference` layout constraint, satisfied by
+/// both classes and C++ foreign reference types.
+LANGUAGE_FEATURE(BuiltinAnyReference, 0, "Builtin.AnyReference")
+
+/// Allow spelling `AnyReference` in user code.
+EXPERIMENTAL_FEATURE(AnyReference, false)
+
 #undef EXPERIMENTAL_FEATURE_EXCLUDED_FROM_MODULE_INTERFACE
 #undef EXPERIMENTAL_FEATURE
 #undef UPCOMING_FEATURE

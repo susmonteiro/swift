@@ -355,7 +355,9 @@ static bool checkProtocolSelfRequirementsImpl(
     Type firstType = req.getFirstType();
     Type secondType;
     if (req.getKind() == RequirementKind::Layout)
-      secondType = ctx.getAnyObjectConstraint();
+      secondType = req.getLayoutConstraint()->isAnyReference()
+                       ? ctx.getAnyReferenceConstraint()
+                       : ctx.getAnyObjectConstraint();
     else
       secondType = req.getSecondType();
 
@@ -1134,8 +1136,13 @@ void TypeChecker::diagnoseRequirementFailure(
   }
 
   case RequirementKind::Layout:
-    diagnostic = diag::type_is_not_a_class;
-    diagnosticNote = diag::anyobject_requirement;
+    if (req.getLayoutConstraint()->isAnyReference()) {
+      diagnostic = diag::type_is_not_a_reference;
+      diagnosticNote = diag::anyreference_requirement;
+    } else {
+      diagnostic = diag::type_is_not_a_class;
+      diagnosticNote = diag::anyobject_requirement;
+    }
     break;
 
   case RequirementKind::Superclass:

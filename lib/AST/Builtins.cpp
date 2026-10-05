@@ -93,6 +93,9 @@ Type swift::getBuiltinType(ASTContext &Context, StringRef Name) {
     if (Name == "AnyObject")
       return CanType(ProtocolCompositionType::theAnyObjectType(Context));
 
+    if (Name == "AnyReference")
+      return Context.getAnyReferenceConstraint();
+
     return Type();
   }
 

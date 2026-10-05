@@ -3715,6 +3715,13 @@ static void checkSpecializeAttrRequirements(AbstractSpecializeAttr *attr,
       break;
 
     case RequirementKind::Layout:
+      // AnyReference prespecializations are not supported.
+      if (specializedReq.getLayoutConstraint()->isAnyReference()) {
+        ctx.Diags.diagnose(attr->getLocation(),
+                           diag::specialize_attr_any_reference,
+                           attr->isPublic());
+        hadError = true;
+      }
       break;
     }
   }

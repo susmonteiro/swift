@@ -267,6 +267,12 @@ checkTypeWitness(Type type, AssociatedTypeDecl *assocType,
     return CheckTypeWitnessResult::forLayout(ctx.getAnyObjectType());
   }
 
+  // Likewise for an AnyReference layout constraint.
+  auto layout = sig->getLayoutConstraint(depTy);
+  if (layout && layout->isAnyReference() &&
+      !type->satisfiesAnyReferenceConstraint())
+    return CheckTypeWitnessResult::forLayout(ctx.getAnyReferenceType());
+
   // Success!
   return CheckTypeWitnessResult::forSuccess();
 }

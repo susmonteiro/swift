@@ -45,7 +45,10 @@ enum class ENUM_EXTENSIBILITY_ATTR(closed) LayoutConstraintKind : uint8_t {
   BridgeObject SWIFT_NAME("bridgeObject"),
   // It is a layout constraint representing a trivial type of a known stride.
   TrivialStride SWIFT_NAME("trivialStride"),
-  LastLayout = TrivialStride,
+  // It is a layout constraint representing a class or a C++ foreign reference
+  // type.
+  AnyReference SWIFT_NAME("anyReference"),
+  LastLayout = AnyReference,
 };
 } // namespace swift
 

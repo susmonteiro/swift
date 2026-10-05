@@ -1139,9 +1139,16 @@ now codified into the ABI; the index 0 is therefore reserved.
   LAYOUT-CONSTRAINT ::= 'U'  // Unknown layout
   LAYOUT-CONSTRAINT ::= 'B' // BridgeObject
   LAYOUT-CONSTRAINT ::= 'S' // TrivialStride
+  LAYOUT-CONSTRAINT ::= 'A' // AnyReference
 
   LAYOUT-SIZE ::= INDEX // Size only
   LAYOUT-SIZE-AND-ALIGNMENT ::= INDEX INDEX // Size followed by alignment
+
+The ``AnyReference`` layout constraint (``A``) is compile-time-only: like
+marker protocols, it is omitted from runtime mangled names. An existential
+with an ``AnyReference`` member is mangled as a constrained existential with
+a ``Self: AnyReference`` requirement, e.g. ``any AnyReference`` is
+``ypRlsA_XP`` (``yp`` at runtime).
 
 A generic signature begins with an optional list of requirements.
 

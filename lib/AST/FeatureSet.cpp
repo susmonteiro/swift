@@ -791,6 +791,123 @@ static bool usesFeatureCalledAttribute(Decl *D) {
 
 UNINTERESTING_FEATURE(BuiltinExtendVectorLanes)
 
+namespace {
+/// Determines whether types and requirements mention AnyReference, either
+/// directly or through a declaration that itself requires the
+/// `BuiltinAnyReference` feature.
+class AnyReferenceUseFinder {
+  llvm::SmallPtrSet<const Decl *, 8> visited;
+
+public:
+  bool typeUses(Type type) {
+    // Walk the sugared type, since that's what gets printed.
+    return type && type.findIf([&](Type t) {
+      if (auto *alias = dyn_cast<TypeAliasType>(t.getPointer()))
+        return typeAliasUses(alias->getDecl());
+      if (auto *composition = dyn_cast<ProtocolCompositionType>(t.getPointer()))
+        return composition->hasExplicitAnyReference();
+      // Imported and stdlib types never use AnyReference in their requirements.
+      if (auto *nominal = t->getAnyNominal())
+        return !nominal->hasClangNode() &&
+               !nominal->getParentModule()->isStdlibModule() &&
+               nominalUses(nominal);
+      return false;
+    });
+  }
+
+  bool requirementsUse(ArrayRef<Requirement> requirements) {
+    return llvm::any_of(requirements, [&](const Requirement &req) {
+      if (req.getKind() == RequirementKind::Layout)
+        return req.getLayoutConstraint()->isAnyReference();
+      return typeUses(req.getFirstType()) || typeUses(req.getSecondType());
+    });
+  }
+
+  /// The requirements a generic context adds on top of its parent's.
+  bool ownRequirementsUse(const GenericContext *genericContext) {
+    return requirementsUse(
+        genericContext->getGenericSignature().requirementsNotSatisfiedBy(
+            genericContext->getParent()->getGenericSignatureOfContext()));
+  }
+
+  /// Conformances and superclasses, e.g. `class C: RefP {}`.
+  bool inheritedTypesUse(const Decl *decl) {
+    InheritedTypes inherited(decl);
+    return llvm::any_of(inherited.getIndices(), [&](unsigned i) {
+      return typeUses(inherited.getResolvedType(i));
+    });
+  }
+
+  bool nominalUses(const NominalTypeDecl *nominal) {
+    if (!visited.insert(nominal).second)
+      return false;
+
+    if (auto *proto = dyn_cast<ProtocolDecl>(nominal))
+      return requirementsUse(
+                 proto->getRequirementSignature().getRequirements()) ||
+             inheritedTypesUse(proto);
+
+    return ownRequirementsUse(nominal) || inheritedTypesUse(nominal);
+  }
+
+  bool typeAliasUses(const TypeAliasDecl *alias) {
+    if (!visited.insert(alias).second)
+      return false;
+
+    if (alias->getParentModule()->isStdlibModule())
+      return alias->getName().is("AnyReference") &&
+             alias->getDeclContext()->isModuleScopeContext();
+
+    if (alias->hasClangNode())
+      return false;
+
+    return typeUses(alias->getUnderlyingType()) || ownRequirementsUse(alias);
+  }
+};
+} // end anonymous namespace
+
+static bool usesFeatureBuiltinAnyReference(Decl *decl) {
+  // Opaque type declarations aren't printed on their own.
+  if (isa<OpaqueTypeDecl>(decl))
+    return false;
+
+  AnyReferenceUseFinder finder;
+
+  // An extension of a type that requires the feature requires it too.
+  auto *ext = dyn_cast<ExtensionDecl>(decl);
+  auto *nominal =
+      ext ? ext->getExtendedNominal() : dyn_cast<NominalTypeDecl>(decl);
+  if (nominal && finder.nominalUses(nominal))
+    return true;
+
+  if (auto *pbd = dyn_cast<PatternBindingDecl>(decl)) {
+    // Use the variables' interface types rather than the checked pattern,
+    // which is not safe to type-check for deserialized declarations.
+    bool uses = false;
+    for (unsigned i = 0, n = pbd->getNumPatternEntries(); i != n; ++i)
+      if (auto *pattern = pbd->getPattern(i))
+        pattern->forEachVariable([&](VarDecl *var) {
+          uses |= usesFeatureBuiltinAnyReference(var);
+        });
+    return uses;
+  }
+
+  if (auto *genericContext = decl->getAsGenericContext())
+    if (finder.ownRequirementsUse(genericContext))
+      return true;
+
+  if (finder.inheritedTypesUse(decl))
+    return true;
+
+  auto *value = dyn_cast<ValueDecl>(decl);
+  return value && finder.typeUses(value->getInterfaceType());
+}
+
+// The experimental feature only gates spelling `AnyReference` in source. Its
+// uses are covered by `BuiltinAnyReference` in module interfaces, and clients
+// of an interface must not need the experimental flag.
+UNINTERESTING_FEATURE(AnyReference)
+
 // ----------------------------------------------------------------------------
 // MARK: - FeatureSet
 // ----------------------------------------------------------------------------

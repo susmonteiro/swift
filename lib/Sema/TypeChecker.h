@@ -752,6 +752,10 @@ CheckedCastKind typeCheckCheckedCast(Type fromType, Type toType,
                                      CheckedCastContextKind contextKind,
                                      DeclContext *dc);
 
+/// Whether the given cast destination type mentions an explicit
+/// 'AnyReference' constraint, which can't be checked at runtime.
+bool castTypeContainsAnyReference(Type castType);
+
 /// Find the Objective-C class that bridges between a value of the given
 /// dynamic type and the given value type.
 ///

@@ -397,9 +397,14 @@ void RequirementMachine::computeRequirementDiagnostics(
     // want a generic parameter to be a class that can't be copied, since we
     // don't allow that for concrete classes today. Thus, we artificially
     // prevent AnyObject from being mixed with inverses.
+    //
+    // The same goes for AnyReference: foreign reference types are always
+    // copyable and escapable too.
+    auto layout = getLayoutConstraint(inverse.subject);
     if (requiresProtocol(inverse.subject, inverse.protocol) ||
         getSuperclassBound(inverse.subject, getGenericParams()) ||
-        requiresClass(inverse.subject))
+        requiresClass(inverse.subject) ||
+        (layout && layout->isAnyReference()))
       errors.push_back(
           RequirementError::forConflictingInverseRequirement(inverse,
                                                              inverse.loc));

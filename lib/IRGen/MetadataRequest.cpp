@@ -480,11 +480,21 @@ static llvm::Value *emitObjCMetadataRef(IRGenFunction &IGF,
 // Get the type that exists at runtime to represent a compile-time type.
 CanType IRGenModule::getRuntimeReifiedType(CanType type) {
   // Leave type-erased ObjC generics with their generic arguments unbound, since
-  // the arguments do not exist at runtime.
+  // the arguments do not exist at runtime. AnyReference is erased, too.
   return CanType(type.transformRec([&](TypeBase *t) -> std::optional<Type> {
     if (CanType(t).isTypeErasedGenericClassType()) {
       return t->getAnyNominal()->getDeclaredType()->getCanonicalType();
     }
+    if (auto erased = getExistentialWithoutAnyReference(CanType(t)))
+      return Type(erased);
+    return std::nullopt;
+  }));
+}
+
+CanType irgen::eraseAnyReference(CanType type) {
+  return CanType(type.transformRec([&](TypeBase *t) -> std::optional<Type> {
+    if (auto erased = getExistentialWithoutAnyReference(CanType(t)))
+      return Type(erased);
     return std::nullopt;
   }));
 }
@@ -2070,6 +2080,10 @@ namespace {
       if (auto metatype = tryGetLocal(type, request))
         return metatype;
 
+      // AnyReference is erased at runtime.
+      if (auto stripped = getExistentialWithoutAnyReference(type))
+        return setLocal(type, IGF.emitTypeMetadataRef(stripped, request));
+
       // Existential metatypes for extended existentials don't use
       // ExistentialMetatypeMetadata.
       if (type->getExistentialLayout().needsExtendedShape()) {
@@ -2098,6 +2112,10 @@ namespace {
       
     MetadataResponse visitExistentialType(CanExistentialType type,
                                           DynamicMetadataRequest request) {
+      // AnyReference is erased at runtime.
+      if (auto stripped = getExistentialWithoutAnyReference(type))
+        return setLocal(type, IGF.emitTypeMetadataRef(stripped, request));
+
       if (auto *PCT =
               type->getConstraintType()->getAs<ProtocolCompositionType>()) {
         auto constraintTy = PCT->withoutMarkerProtocols();
@@ -2267,6 +2285,10 @@ namespace {
     MetadataResponse
     visitProtocolCompositionType(CanProtocolCompositionType type,
                                  DynamicMetadataRequest request) {
+      // AnyReference is erased at runtime.
+      if (auto stripped = getExistentialWithoutAnyReference(type))
+        return IGF.emitTypeMetadataRef(stripped, request);
+
       if (type->isAny() || type->isAnyObject()) {
         if (!type->getASTContext().LangOpts.hasFeature(Feature::Embedded))
           return emitSingletonExistentialTypeMetadata(type);

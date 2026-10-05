@@ -3075,6 +3075,12 @@ NodePointer NodePrinter::print(NodePointer Node, unsigned depth,
       name = "_Trivial";
     } else if (c == 'M' || c == 'm') {
       name = "_TrivialAtMost";
+    } else if (c == 'B') {
+      name = "_BridgeObject";
+    } else if (c == 'S') {
+      name = "_TrivialStride";
+    } else if (c == 'A') {
+      name = "AnyReference";
     }
     Printer << name;
     if (Node->getNumChildren() > 2) {

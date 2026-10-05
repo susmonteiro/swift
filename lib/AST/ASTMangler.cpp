@@ -1404,6 +1404,13 @@ void ASTMangler::appendType(Type type, GenericSignature sig,
   assert((DWARFMangling || type->isCanonical()) &&
          "expecting canonical types when not mangling for the debugger");
   TypeBase *tybase = type.getPointer();
+
+  // AnyReference is erased at runtime, like marker protocols.
+  if (!AllowMarkerProtocols &&
+      isa<ExistentialType, ExistentialMetatypeType>(tybase))
+    if (auto stripped = getExistentialWithoutAnyReference(CanType(tybase)))
+      return appendType(stripped, sig, forDecl);
+
   switch (type->getKind()) {
     case TypeKind::TypeVariable:
     case TypeKind::Join:
@@ -1708,12 +1715,15 @@ void ASTMangler::appendType(Type type, GenericSignature sig,
           return appendType(strippedTy, sig, forDecl);
       }
 
-      if (PCT->getExistentialLayout().needsExtendedShape(AllowedInverses))
+      // 'any P & AnyReference' is mangled as a constrained existential with
+      // a 'Self: AnyReference' requirement.
+      auto layout = PCT->getExistentialLayout();
+      if (layout.needsExtendedShape(AllowedInverses) ||
+          (AllowMarkerProtocols && layout.hasExplicitAnyReference))
         return appendConstrainedExistential(PCT, sig, forDecl);
 
       // We mangle ProtocolType and ProtocolCompositionType using the
       // same production:
-      auto layout = PCT->getExistentialLayout();
       return appendExistentialLayout(layout, sig, forDecl);
     }
 
@@ -3904,6 +3914,9 @@ void ASTMangler::appendRequirement(const Requirement &reqt,
 
   switch (reqt.getKind()) {
   case RequirementKind::Layout:
+    // AnyReference is erased at runtime, like marker protocols.
+    if (!AllowMarkerProtocols && reqt.getLayoutConstraint()->isAnyReference())
+      return;
     break;
   case RequirementKind::Conformance: {
     // If we don't allow marker protocols but we have one here, skip it.
@@ -3929,7 +3942,8 @@ void ASTMangler::appendRequirement(const Requirement &reqt,
     case RequirementKind::Conformance:
       return appendOpWithGenericParamIndex("R", subject.gpBase);
     case RequirementKind::Layout:
-      appendOpWithGenericParamIndex("Rl", subject.gpBase);
+      appendOpWithGenericParamIndex("Rl", subject.gpBase,
+                                    lhsBaseIsProtocolSelf);
       appendOpParamForLayoutConstraint(reqt.getLayoutConstraint());
       return;
     case RequirementKind::Superclass:
@@ -4845,6 +4859,9 @@ void ASTMangler::appendOpParamForLayoutConstraint(LayoutConstraint layout) {
   case LayoutConstraintKind::TrivialStride:
     appendOperatorParam("S", Index(layout->getTrivialSizeInBits()));
     break;
+  case LayoutConstraintKind::AnyReference:
+    appendOperatorParam("A");
+    break;
   }
 }
 
@@ -5462,6 +5479,20 @@ void ASTMangler::gatherExistentialRequirements(
     for (auto memberTy : compositionTy->getMembers())
       gatherExistentialRequirements(reqs, inverses, memberTy);
 
+    // 'any P & AnyReference' is mangled with a 'Self: AnyReference' layout
+    // requirement, except for the runtime. A sugared member may have added
+    // it already.
+    if (AllowMarkerProtocols && compositionTy->hasExplicitAnyReference() &&
+        llvm::none_of(reqs, [](const Requirement &r) {
+          return r.getKind() == RequirementKind::Layout &&
+                 r.getLayoutConstraint()->isAnyReference();
+        })) {
+      reqs.push_back(Requirement(
+          RequirementKind::Layout, Context.TheSelfType,
+          LayoutConstraint::getLayoutConstraint(
+              LayoutConstraintKind::AnyReference)));
+    }
+
     extractExistentialInverseRequirements(inverses, compositionTy);
   }
 }
@@ -5499,6 +5530,10 @@ void ASTMangler::appendConstrainedExistential(Type base, GenericSignature sig,
     case RequirementKind::SameShape:
       llvm_unreachable("Same-shape requirement not supported here");
     case RequirementKind::Layout:
+      // 'Self: AnyReference' is how 'any P & AnyReference' is mangled.
+      if (reqt.getLayoutConstraint()->isAnyReference())
+        break;
+      [[fallthrough]];
     case RequirementKind::Conformance:
     case RequirementKind::Superclass:
       // The surface language cannot express these requirements yet, so

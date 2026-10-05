@@ -2995,6 +2995,29 @@ diagnoseDeclAsyncAvailability(const ValueDecl *D, SourceRange R,
   return true;
 }
 
+/// Spelling the standard library's 'AnyReference' typealias requires the
+/// experimental 'AnyReference' feature outside of the standard library,
+/// module interfaces, and SIL. Returns true if a diagnostic was emitted.
+static bool diagnoseExperimentalAnyReference(const ValueDecl *D, SourceRange R,
+                                             const DeclContext *DC) {
+  auto *alias = dyn_cast<TypeAliasDecl>(D);
+  if (!alias || R.isInvalid() || !alias->getName().is("AnyReference") ||
+      !alias->getDeclContext()->isModuleScopeContext() ||
+      !alias->getParentModule()->isStdlibModule())
+    return false;
+
+  auto &ctx = alias->getASTContext();
+  auto *sourceFile = DC->getParentSourceFile();
+  if (ctx.LangOpts.hasFeature(Feature::AnyReference) ||
+      DC->getParentModule()->isStdlibModule() ||
+      (sourceFile && (sourceFile->Kind == SourceFileKind::Interface ||
+                      sourceFile->Kind == SourceFileKind::SIL)))
+    return false;
+
+  ctx.Diags.diagnose(R.Start, diag::any_reference_experimental);
+  return true;
+}
+
 /// Diagnose uses of unavailable declarations. Returns true if a diagnostic
 /// was emitted.
 bool swift::diagnoseDeclAvailability(const ValueDecl *D, SourceRange R,
@@ -3017,6 +3040,9 @@ bool swift::diagnoseDeclAvailability(const ValueDecl *D, SourceRange R,
   auto &ctx = DC->getASTContext();
 
   if (diagnoseDeclAsyncAvailability(D, R, call, Where))
+    return true;
+
+  if (diagnoseExperimentalAnyReference(D, R, DC))
     return true;
 
   if (!Flags.contains(DeclAvailabilityFlag::DisableUnsafeChecking))

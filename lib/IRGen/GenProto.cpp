@@ -4804,6 +4804,12 @@ llvm::Constant *IRGenModule::getAddrOfGenericEnvironment(
         SmallVector<InverseRequirement, 2> inverses;
         signature->getRequirementsWithInverses(reqs, inverses);
 
+        // addGenericRequirements doesn't emit AnyReference requirements.
+        llvm::erase_if(reqs, [](const Requirement &req) {
+          return req.getKind() == RequirementKind::Layout &&
+                 req.getLayoutConstraint()->isAnyReference();
+        });
+
         auto flags = GenericEnvironmentFlags()
           .withNumGenericParameterLevels(genericParamCounts.size())
           .withNumGenericRequirements(reqs.size());

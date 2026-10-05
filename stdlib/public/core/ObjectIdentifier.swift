@@ -12,14 +12,16 @@
 
 #if !$Embedded
 
-/// A unique identifier for a class instance, actor instance, or metatype.
+/// A unique identifier for a class instance, actor instance, foreign
+/// reference type instance, or metatype.
 ///
 /// This unique identifier is valid for comparisons only during the lifetime
 /// of the instance.
 ///
-/// In Swift, only instances of classes, instances of actors, and metatypes
-/// have unique identities. There's no notion of identity for structures,
-/// enumerations, functions, or tuples.
+/// In Swift, only instances of classes, instances of actors, instances of
+/// imported C++ foreign reference types, and metatypes have unique
+/// identities. There's no notion of identity for structures, enumerations,
+/// functions, or tuples.
 @frozen // trivial-implementation
 public struct ObjectIdentifier: Sendable {
   @usableFromInline // trivial-implementation
@@ -94,6 +96,29 @@ public struct ObjectIdentifier: Sendable {
 }
 
 #endif
+
+extension ObjectIdentifier {
+  /// Creates an instance that uniquely identifies the given reference,
+  /// including an instance of a C++ foreign reference type.
+  ///
+  /// For C++ types that use multiple inheritance, a reference to a
+  /// non-primary base class has a different address than a reference to the
+  /// derived object.
+  ///
+  /// - Parameter x: An instance of a reference type.
+  @export(implementation)
+  @_disfavoredOverload
+  public init<T: AnyReference>(_ x: T) {
+    // A reference is a single pointer, so reinterpreting its bits neither
+    // retains nor releases it. This isn't an internal invariant: a value type
+    // can reach here when a generic parameter bound to `any AnyReference` is
+    // cast (e.g. `x as? T`), since `AnyReference` has no runtime presence.
+    _precondition(
+      MemoryLayout<T>.size == MemoryLayout<Builtin.RawPointer>.size,
+      "ObjectIdentifier requires a reference represented as a single pointer")
+    self._value = Builtin.reinterpretCast(x)
+  }
+}
 
 @_unavailableInEmbedded
 extension ObjectIdentifier: CustomDebugStringConvertible {

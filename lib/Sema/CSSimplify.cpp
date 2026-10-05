@@ -4098,7 +4098,8 @@ ConstraintSystem::matchDeepEqualityTypes(Type type1, Type type2,
       return SolutionKind::Error;
     if (pct1->getInverses() != pct2->getInverses())
       return SolutionKind::Error;
-    if (pct1->hasExplicitAnyObject() != pct2->hasExplicitAnyObject())
+    if (pct1->hasExplicitAnyObject() != pct2->hasExplicitAnyObject() ||
+        pct1->hasExplicitAnyReference() != pct2->hasExplicitAnyReference())
       return SolutionKind::Error;
     for (unsigned i = 0, e = members1.size(); i < e; ++i) {
       auto member1 = members1[i];
@@ -4361,6 +4362,72 @@ ConstraintSystem::matchExistentialTypes(Type type1, Type type2,
       }
 
       // Keep going.
+    }
+  }
+
+  // Handle an explicit '& AnyReference' constraint. Unlike AnyObject, it is
+  // not checked at runtime, so it has to be fully checked here.
+  if (layout.hasExplicitAnyReference) {
+    bool isConformance = kind == ConstraintKind::ConformsTo ||
+                         kind == ConstraintKind::NonisolatedConformsTo;
+    // 'any AnyReference' doesn't satisfy 'T: AnyReference', but existential
+    // erasure accepts existentials whose values are all references.
+    bool satisfied = type1->satisfiesAnyReferenceConstraint() ||
+                     (!isConformance && type1->isExistentialType() &&
+                      type1->getExistentialLayout().requiresAnyReference());
+
+    if (!satisfied) {
+      if (shouldAttemptFixes() && isConformance) {
+        if (auto last = locator.last()) {
+          if (auto req = last->getAs<LocatorPathElt::AnyRequirement>()) {
+            if (type1->isPlaceholder() ||
+                (!type1->isExistentialType() &&
+                 req->getRequirementKind() == RequirementKind::Superclass))
+              return SolutionKind::Solved;
+
+            // Make requirement failures of the disfavored AnyReference
+            // operator overloads (e.g. '===') at least as bad as an argument
+            // mismatch on the AnyObject overload, so that the latter wins.
+            auto impact = FixImpact::Mismatch;
+            if (auto name = getOperatorName(getAsExpr(locator.getAnchor()));
+                name && name->isOperator())
+              impact = FixImpact::TypeMismatch;
+
+            auto *fix = fixRequirementFailure(*this, type1, type2, locator);
+            if (fix && !recordFix(fix, impact)) {
+              recordFixedRequirement(getConstraintLocator(locator), type2);
+              return SolutionKind::Solved;
+            }
+          }
+        }
+      } else if (shouldAttemptFixes()) {
+        SmallVector<LocatorPathElt, 4> path;
+        if (auto anchor = locator.getLocatorParts(path)) {
+          // Drop the optional injection or generic argument bits, like for
+          // AnyObject above.
+          if (!path.empty() &&
+              (path.back().is<LocatorPathElt::OptionalInjection>() ||
+               path.back().is<LocatorPathElt::GenericArgument>()))
+            path.pop_back();
+
+          auto *fixLoc = getConstraintLocator(anchor, path);
+          if (fixLoc->directlyAt<AssignExpr>()) {
+            auto *fix = IgnoreAssignmentDestinationType::create(
+                *this, type1, type2, fixLoc);
+            return recordFix(fix) ? SolutionKind::Error
+                                  : SolutionKind::Solved;
+          }
+
+          ConstraintFix *fix;
+          if (fixLoc->isLastElement<LocatorPathElt::ApplyArgToParam>())
+            fix = AllowArgumentMismatch::create(*this, type1, type2, fixLoc);
+          else
+            fix = ContextualMismatch::create(*this, type1, type2, fixLoc);
+          return recordFix(fix) ? SolutionKind::Error : SolutionKind::Solved;
+        }
+      }
+
+      return SolutionKind::Error;
     }
   }
 
@@ -16563,11 +16630,16 @@ void ConstraintSystem::addConstraint(Requirement req,
     kind = ConstraintKind::Bind;
     break;
   case RequirementKind::Layout:
-    // Only a class constraint can be modeled as a constraint, and only that can
-    // appear outside of a @_specialize at the moment anyway.
+    // Only class and AnyReference constraints can be modeled as constraints,
+    // and only those can appear outside of a @_specialize at the moment anyway.
     if (req.getLayoutConstraint()->isClass()) {
       conformsToAnyObject = true;
       break;
+    } else if (req.getLayoutConstraint()->isAnyReference()) {
+      addConstraint(ConstraintKind::ConformsTo, req.getFirstType(),
+                    getASTContext().getAnyReferenceConstraint(), locator,
+                    /*isFavored=*/false, preparedOverload);
+      return;
     } else {
       llvm_unreachable("unexpected LayoutConstraint kind");
     }

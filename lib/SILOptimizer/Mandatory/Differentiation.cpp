@@ -282,6 +282,10 @@ static bool diagnoseUnsatisfiedRequirements(ADContext &context,
         if (!firstType->satisfiesClassConstraint())
           unsatisfiedRequirements.push_back(req);
         continue;
+      case LayoutConstraintKind::AnyReference:
+        if (!firstType->satisfiesAnyReferenceConstraint())
+          unsatisfiedRequirements.push_back(req);
+        continue;
       default:
         // TODO: Check other layout requirements. Note that `@differentiable`
         // attribute type-checking does not yet support layout requirements in

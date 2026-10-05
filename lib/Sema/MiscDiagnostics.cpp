@@ -473,6 +473,13 @@ static void diagSyntacticUseRestrictions(const Expr *E, const DeclContext *DC,
       // Embedded Swift places restrictions on dynamic casting.
       diagnoseDynamicCastInEmbedded(DC, cast);
 
+      // AnyReference constraints are erased at runtime, so a dynamic cast
+      // would accept any value.
+      if (TypeChecker::castTypeContainsAnyReference(castType)) {
+        Ctx.Diags.diagnose(cast->getLoc(), diag::any_reference_cast, castType);
+        return;
+      }
+
       // now, look for conditional casts to marker protocols.
 
       if (!isa<ConditionalCheckedCastExpr>(cast) && !isa<IsExpr>(cast))

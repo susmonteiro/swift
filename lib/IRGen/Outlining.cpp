@@ -282,7 +282,8 @@ void OutliningMetadataCollector::bindPolymorphicParameters(
 
 std::pair<CanType, CanGenericSignature>
 irgen::getTypeAndGenericSignatureForManglingOutlineFunction(SILType type) {
-  auto loweredType = type.getASTType();
+  // AnyReference does not affect representation.
+  auto loweredType = eraseAnyReference(type.getASTType());
   if (!loweredType->hasArchetype()) return {loweredType, nullptr};
 
   GenericEnvironment *env = digOutGenericEnvironment(loweredType);

@@ -116,6 +116,14 @@ class LayoutConstraintInfo
 
   bool isTrivialStride() const { return isTrivialStride(Kind); }
 
+  bool isAnyReference() const {
+    return Kind == LayoutConstraintKind::AnyReference;
+  }
+
+  /// Note: _RefCountedObject and _NativeRefCountedObject don't imply
+  /// AnyReference.
+  bool impliesAnyReference() const { return isAnyReference() || isClass(); }
+
   unsigned getTrivialSizeInBytes() const {
     assert(isKnownSizeTrivial());
     return (SizeInBits + 7) / 8;
@@ -236,6 +244,7 @@ class LayoutConstraintInfo
   static LayoutConstraintInfo NativeClassConstraintInfo;
   static LayoutConstraintInfo TrivialConstraintInfo;
   static LayoutConstraintInfo BridgeObjectConstraintInfo;
+  static LayoutConstraintInfo AnyReferenceConstraintInfo;
 };
 
 /// A wrapper class containing a reference to the actual LayoutConstraintInfo

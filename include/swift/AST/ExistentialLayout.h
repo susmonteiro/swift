@@ -58,6 +58,7 @@ struct ExistentialLayout {
 
   ExistentialLayout() {
     hasExplicitAnyObject = false;
+    hasExplicitAnyReference = false;
     containsObjCProtocol = false;
     containsSwiftProtocol = false;
     representsAnyObject = false;
@@ -72,6 +73,10 @@ struct ExistentialLayout {
 
   /// Whether the existential contains an explicit '& AnyObject' constraint.
   bool hasExplicitAnyObject : 1;
+
+  /// Whether the existential contains an explicit '& AnyReference' constraint
+  /// not implied by another member. It does not affect the representation.
+  bool hasExplicitAnyReference : 1;
 
   /// Whether any protocol members are @objc.
   bool containsObjCProtocol : 1;
@@ -154,6 +159,10 @@ struct ExistentialLayout {
   ArrayRef<ProtocolDecl*> getParameterizedProtocols() const && = delete;
 
   LayoutConstraint getLayoutConstraint() const;
+
+  /// Whether every value of this existential satisfies the AnyReference
+  /// layout constraint.
+  bool requiresAnyReference() const;
 
   /// Whether this layout has any inverses within its signature.
   bool hasInverses() const {

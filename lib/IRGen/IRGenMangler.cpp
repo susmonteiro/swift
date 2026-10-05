@@ -286,6 +286,8 @@ mangleProtocolForLLVMTypeName(ProtocolCompositionType *type) {
     Buffer << "Any";
   } else if (layout.isAnyObject()) {
     Buffer << "AnyObject";
+  } else if (type->isEqual(type->getASTContext().getAnyReferenceConstraint())) {
+    Buffer << "AnyReference";
   } else {
     // To make LLVM IR more readable we always add a 'T' prefix so that type names
     // don't start with a digit and don't need to be quoted.

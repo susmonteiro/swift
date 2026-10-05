@@ -8011,6 +8011,9 @@ public:
     if (T->hasExplicitAnyObject())
       printSpecial("AnyObject");
 
+    if (T->hasExplicitAnyReference())
+      printSpecial("AnyReference");
+
     for (auto ip : T->getInverses())
       printSpecial(getProtocolName(getKnownProtocolKind(ip)), true);
 
@@ -8506,6 +8509,7 @@ void LayoutConstraintInfo::print(ASTPrinter &Printer,
   case LayoutConstraintKind::NativeClass:
   case LayoutConstraintKind::Trivial:
   case LayoutConstraintKind::BridgeObject:
+  case LayoutConstraintKind::AnyReference:
     return; // non-parameterized cases
   case LayoutConstraintKind::TrivialOfAtMostSize:
   case LayoutConstraintKind::TrivialOfExactSize:
@@ -8960,7 +8964,8 @@ static Type stripParameterizedProtocolArgs(Type type) {
       return ProtocolCompositionType::get(
           type->getASTContext(), processedMembers,
           compositionType->getInverses(),
-          compositionType->hasExplicitAnyObject());
+          compositionType->hasExplicitAnyObject(),
+          compositionType->hasExplicitAnyReference());
     }
     return type;
   }

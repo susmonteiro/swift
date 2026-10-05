@@ -176,8 +176,11 @@ static void checkInvertibleConformanceCommon(DeclContext *dc,
         // If we are diagnosing, fill-in the second-type string of this req.
         switch (req.getKind()) {
         case RequirementKind::Layout:
-          assert(req.getLayoutConstraint()->isClass());
-          illegalSecondType = ctx.getAnyObjectType();
+          assert(req.getLayoutConstraint()->isClass() ||
+                 req.getLayoutConstraint()->isAnyReference());
+          illegalSecondType = req.getLayoutConstraint()->isAnyReference()
+                                  ? ctx.getAnyReferenceType()
+                                  : ctx.getAnyObjectType();
           break;
         case RequirementKind::Conformance:
           if (req.getProtocolDecl() == thisProto
