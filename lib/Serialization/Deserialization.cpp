@@ -1456,6 +1456,7 @@ getActualLayoutConstraintKind(uint64_t rawKind) {
   CASE(UnknownLayout)
   CASE(BridgeObject)
   CASE(TrivialStride)
+  CASE(AnyReference)
   }
 #undef CASE
 

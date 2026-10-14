@@ -4626,6 +4626,8 @@ NodePointer Demangler::demangleGenericRequirement() {
       name = "T";
     } else if (c == 'B') {
       name = "B";
+    } else if (c == 'A') {
+      name = "A";
     } else if (c == 'E') {
       size = demangleIndexAsNode();
       if (!size)

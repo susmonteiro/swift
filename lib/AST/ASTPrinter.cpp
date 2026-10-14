@@ -8532,6 +8532,7 @@ void LayoutConstraintInfo::print(ASTPrinter &Printer,
   case LayoutConstraintKind::NativeClass:
   case LayoutConstraintKind::Trivial:
   case LayoutConstraintKind::BridgeObject:
+  case LayoutConstraintKind::AnyReference:
     return; // non-parameterized cases
   case LayoutConstraintKind::TrivialOfAtMostSize:
   case LayoutConstraintKind::TrivialOfExactSize:

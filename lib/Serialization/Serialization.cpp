@@ -1804,6 +1804,9 @@ void Serializer::serializeGenericRequirements(
       case LayoutConstraintKind::TrivialStride:
         rawKind = LayoutRequirementKind::TrivialStride;
         break;
+      case LayoutConstraintKind::AnyReference:
+        rawKind = LayoutRequirementKind::AnyReference;
+        break;
       }
       scratch.push_back(rawKind);
       scratch.push_back(addTypeRef(req.getFirstType()));

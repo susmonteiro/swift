@@ -3077,6 +3077,8 @@ NodePointer NodePrinter::print(NodePointer Node, unsigned depth,
       name = "_NativeRefCountedObject";
     } else if (c == 'C') {
       name = "AnyObject";
+    } else if (c == 'A') {
+      name = "AnyReference";
     } else if (c == 'D') {
       name = "_NativeClass";
     } else if (c == 'T') {

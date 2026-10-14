@@ -47,6 +47,10 @@ LayoutConstraint getLayoutConstraint(Identifier ID, ASTContext &Ctx) {
     return LayoutConstraint::getLayoutConstraint(
       LayoutConstraintKind::NativeClass, Ctx);
 
+  if (ID == Ctx.Id_AnyReference)
+    return LayoutConstraint::getLayoutConstraint(
+        LayoutConstraintKind::AnyReference, Ctx);
+
   if (ID == Ctx.Id_BridgeObjectLayout)
     return LayoutConstraint::getLayoutConstraint(
         LayoutConstraintKind::BridgeObject, Ctx);
@@ -69,6 +73,8 @@ StringRef LayoutConstraintInfo::getName(LayoutConstraintKind Kind, bool internal
     return "_UnknownLayout";
   case LayoutConstraintKind::Class:
     return internalName ? "_Class" : "AnyObject";
+  case LayoutConstraintKind::AnyReference:
+    return internalName ? "_AnyReference" : "AnyReference";
   case LayoutConstraintKind::NativeClass:
     return "_NativeClass";
   case LayoutConstraintKind::RefCountedObject:
@@ -161,6 +167,15 @@ bool LayoutConstraintInfo::isTrivialStride(LayoutConstraintKind Kind) {
   return Kind == LayoutConstraintKind::TrivialStride;
 }
 
+bool LayoutConstraintInfo::isAnyReference(LayoutConstraintKind Kind) {
+  return Kind == LayoutConstraintKind::AnyReference;
+}
+
+bool LayoutConstraintInfo::isNativeOrForeignReference(
+    LayoutConstraintKind Kind) {
+  return isAnyReference(Kind) || isClass(Kind);
+}
+
 SourceRange LayoutConstraintLoc::getSourceRange() const { return getLoc(); }
 
 #define MERGE_LOOKUP(lhs, rhs)                                                 \
@@ -192,47 +207,49 @@ static LayoutConstraintKind mergeTable[unsigned(E(LastLayout)) +
      E(/* Class */ Class), E(/* NativeClass */ NativeClass),
      E(/* RefCountedObject*/ RefCountedObject),
      E(/* NativeRefCountedObject */ NativeRefCountedObject), MERGE_CONFLICT,
-     MERGE_CONFLICT},
+     MERGE_CONFLICT, E(/* AnyReference */ AnyReference)},
 
     // Initialize the row for TrivialOfExactSize.
     {E(/* UnknownLayout */ TrivialOfExactSize),
      E(/* TrivialOfExactSize */ TrivialOfExactSize), MERGE_CONFLICT,
      E(/* Trivial */ TrivialOfExactSize), MERGE_CONFLICT, MERGE_CONFLICT,
-     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT},
+     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
+     MERGE_CONFLICT},
 
     // Initialize the row for TrivialOfAtMostSize.
     {E(/* UnknownLayout */ TrivialOfAtMostSize), MERGE_CONFLICT,
      E(/* TrivialOfAtMostSize */ TrivialOfAtMostSize),
      E(/* Trivial */ TrivialOfAtMostSize), MERGE_CONFLICT, MERGE_CONFLICT,
-     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT},
+     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
+     MERGE_CONFLICT},
 
     // Initialize the row for Trivial.
     {E(/* UnknownLayout */ Trivial),
      E(/* TrivialOfExactSize */ TrivialOfExactSize),
      E(/* TrivialOfAtMostSize */ TrivialOfAtMostSize), E(/* Trivial */ Trivial),
      MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
-     MERGE_CONFLICT, MERGE_CONFLICT},
+     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT},
 
     // Initialize the row for Class.
     {E(/* UnknownLayout*/ Class), MERGE_CONFLICT, MERGE_CONFLICT,
      MERGE_CONFLICT, E(/* Class */ Class), E(/* NativeClass */ NativeClass),
      E(/* RefCountedObject */ Class),
      E(/* NativeRefCountedObject */ NativeClass), MERGE_CONFLICT,
-     MERGE_CONFLICT},
+     MERGE_CONFLICT, E(/* AnyReference */ Class)},
 
     // Initialize the row for NativeClass.
     {E(/* UnknownLayout */ NativeClass), MERGE_CONFLICT, MERGE_CONFLICT,
      MERGE_CONFLICT, E(/* Class */ NativeClass),
      E(/* NativeClass */ NativeClass), E(/* RefCountedObject */ NativeClass),
      E(/* NativeRefCountedObject */ NativeClass), MERGE_CONFLICT,
-     MERGE_CONFLICT},
+     MERGE_CONFLICT, E(/* AnyReference */ NativeClass)},
 
     // Initialize the row for RefCountedObject.
     {E(/* UnknownLayout */ RefCountedObject), MERGE_CONFLICT, MERGE_CONFLICT,
      MERGE_CONFLICT, E(/* Class */ Class), E(/* NativeClass */ NativeClass),
      E(/* RefCountedObject */ RefCountedObject),
      E(/* NativeRefCountedObject */ NativeRefCountedObject), MERGE_CONFLICT,
-     MERGE_CONFLICT},
+     MERGE_CONFLICT, MERGE_CONFLICT},
 
     // Initialize the row for NativeRefCountedObject.
     {E(/* UnknownLayout */ NativeRefCountedObject), MERGE_CONFLICT,
@@ -240,15 +257,21 @@ static LayoutConstraintKind mergeTable[unsigned(E(LastLayout)) +
      E(/* NativeClass */ NativeClass),
      E(/* RefCountedObject */ NativeRefCountedObject),
      E(/* NativeRefCountedObject*/ NativeRefCountedObject), MERGE_CONFLICT,
-     MERGE_CONFLICT},
+     MERGE_CONFLICT, MERGE_CONFLICT},
 
     {E(BridgeObject), MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
      MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
-     E(/*BridgeObject*/ BridgeObject), MERGE_CONFLICT},
+     E(/*BridgeObject*/ BridgeObject), MERGE_CONFLICT, MERGE_CONFLICT},
 
     {E(TrivialStride), MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
      MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
-     MERGE_CONFLICT, E(/*TrivialStride*/ TrivialStride)},
+     MERGE_CONFLICT, E(/*TrivialStride*/ TrivialStride), MERGE_CONFLICT},
+
+    // Initialize the row for AnyReference.
+    {E(/* UnknownLayout*/ AnyReference), MERGE_CONFLICT, MERGE_CONFLICT,
+     MERGE_CONFLICT, E(/* Class */ Class), E(/* NativeClass */ NativeClass),
+     MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT, MERGE_CONFLICT,
+     E(/* AnyReference */ AnyReference)},
 };
 
 #undef E
@@ -362,6 +385,8 @@ LayoutConstraint::getLayoutConstraint(LayoutConstraintKind Kind) {
     return LayoutConstraint(&LayoutConstraintInfo::UnknownLayoutConstraintInfo);
   case LayoutConstraintKind::BridgeObject:
     return LayoutConstraint(&LayoutConstraintInfo::BridgeObjectConstraintInfo);
+  case LayoutConstraintKind::AnyReference:
+    return LayoutConstraint(&LayoutConstraintInfo::AnyReferenceConstraintInfo);
   case LayoutConstraintKind::TrivialOfAtMostSize:
   case LayoutConstraintKind::TrivialOfExactSize:
   case LayoutConstraintKind::TrivialStride:
@@ -393,6 +418,9 @@ LayoutConstraintInfo LayoutConstraintInfo::TrivialConstraintInfo(
 
 LayoutConstraintInfo LayoutConstraintInfo::BridgeObjectConstraintInfo(
     LayoutConstraintKind::BridgeObject);
+
+LayoutConstraintInfo LayoutConstraintInfo::AnyReferenceConstraintInfo(
+    LayoutConstraintKind::AnyReference);
 
 int LayoutConstraint::compare(LayoutConstraint rhs) const {
   if (Ptr->getKind() != rhs->getKind())

@@ -4831,6 +4831,9 @@ void ASTMangler::appendOpParamForLayoutConstraint(LayoutConstraint layout) {
   case LayoutConstraintKind::Trivial:
     appendOperatorParam("T");
     break;
+  case LayoutConstraintKind::AnyReference:
+    appendOperatorParam("A");
+    break;
   case LayoutConstraintKind::TrivialOfExactSize:
     if (!layout->getAlignmentInBits())
       appendOperatorParam("e", Index(layout->getTrivialSizeInBits()));
