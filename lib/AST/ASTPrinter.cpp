@@ -8099,6 +8099,9 @@ public:
     if (T->hasExplicitAnyObject())
       printSpecial("AnyObject");
 
+    if (T->hasExplicitAnyReference())
+      printSpecial("AnyReference");
+
     for (auto ip : T->getInverses())
       printSpecial(getProtocolName(getKnownProtocolKind(ip)), true);
 
