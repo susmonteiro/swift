@@ -2295,8 +2295,21 @@ private:
       // two conflicting types with the same mangled name (one being the
       // protocol composition, the other being only the protocol), In that case,
       // emit debug info as only the protocol type.
+      // Likewise for a sugared composition with an 'AnyReference' member, whose
+      // members may have the same mangled name as the composition. For example,
+      // given:
+      //
+      // func f(param: AnyObject & AnyReference) {}
+      //
+      // The canonical type of "param" is simply AnyObject, since AnyObject
+      // already implies AnyReference.
       auto CanTy = BaseTy->getCanonicalType();
-      if (!isa<ProtocolCompositionType>(CanTy)) {
+      auto hasExplicitAnyReference = [](Type member) {
+        auto *memberComp = member->getAs<ProtocolCompositionType>();
+        return memberComp && memberComp->hasExplicitAnyReference();
+      };
+      if (!isa<ProtocolCompositionType>(CanTy) ||
+          llvm::any_of(CompTy->getMembers(), hasExplicitAnyReference)) {
         return getOrCreateDesugaredType(CanTy, DbgTy);
       }
 

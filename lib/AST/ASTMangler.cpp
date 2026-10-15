@@ -27,6 +27,8 @@
 #include "swift/AST/GenericEnvironment.h"
 #include "swift/AST/GenericSignature.h"
 #include "swift/AST/Initializer.h"
+#include "swift/AST/LayoutConstraint.h"
+#include "swift/AST/LayoutConstraintKind.h"
 #include "swift/AST/LazyResolver.h"
 #include "swift/AST/LocalArchetypeRequirementCollector.h"
 #include "swift/AST/MacroDiscriminatorContext.h"
@@ -37,6 +39,7 @@
 #include "swift/AST/PrettyStackTrace.h"
 #include "swift/AST/ProtocolConformance.h"
 #include "swift/AST/ProtocolConformanceRef.h"
+#include "swift/AST/RequirementKind.h"
 #include "swift/AST/SILLayout.h"
 #include "swift/AST/TypeCheckRequests.h"
 #include "swift/Basic/Assertions.h"
@@ -1709,12 +1712,13 @@ void ASTMangler::appendType(Type type, GenericSignature sig,
           return appendType(strippedTy, sig, forDecl);
       }
 
-      if (PCT->getExistentialLayout().needsExtendedShape(AllowedInverses))
+      auto layout = PCT->getExistentialLayout();
+      if (layout.needsExtendedShape(AllowedInverses) ||
+          (AllowMarkerProtocols && layout.hasExplicitAnyReference))
         return appendConstrainedExistential(PCT, sig, forDecl);
 
       // We mangle ProtocolType and ProtocolCompositionType using the
       // same production:
-      auto layout = PCT->getExistentialLayout();
       return appendExistentialLayout(layout, sig, forDecl);
     }
 
@@ -3935,7 +3939,8 @@ void ASTMangler::appendRequirement(const Requirement &reqt,
     case RequirementKind::Conformance:
       return appendOpWithGenericParamIndex("R", subject.gpBase);
     case RequirementKind::Layout:
-      appendOpWithGenericParamIndex("Rl", subject.gpBase);
+      appendOpWithGenericParamIndex("Rl", subject.gpBase,
+                                    lhsBaseIsProtocolSelf);
       appendOpParamForLayoutConstraint(reqt.getLayoutConstraint());
       return;
     case RequirementKind::Superclass:
@@ -5471,6 +5476,15 @@ void ASTMangler::gatherExistentialRequirements(
     for (auto memberTy : compositionTy->getMembers())
       gatherExistentialRequirements(reqs, inverses, memberTy);
 
+    if (AllowMarkerProtocols && compositionTy->hasExplicitAnyReference() &&
+        llvm::none_of(reqs, [](const Requirement &r) {
+          return r.getKind() == RequirementKind::Layout &&
+                 r.getLayoutConstraint()->isAnyReference();
+        })) {
+      reqs.push_back(Requirement(RequirementKind::Layout, Context.TheSelfType,
+                                 LayoutConstraint::getLayoutConstraint(
+                                     LayoutConstraintKind::AnyReference)));
+    }
     extractExistentialInverseRequirements(inverses, compositionTy);
   }
 }
@@ -5508,6 +5522,9 @@ void ASTMangler::appendConstrainedExistential(Type base, GenericSignature sig,
     case RequirementKind::SameShape:
       llvm_unreachable("Same-shape requirement not supported here");
     case RequirementKind::Layout:
+      if (reqt.getLayoutConstraint()->isAnyReference())
+        break;
+      [[fallthrough]];
     case RequirementKind::Conformance:
     case RequirementKind::Superclass:
       // The surface language cannot express these requirements yet, so

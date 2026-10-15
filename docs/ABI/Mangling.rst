@@ -1145,6 +1145,9 @@ now codified into the ABI; the index 0 is therefore reserved.
   LAYOUT-SIZE ::= INDEX // Size only
   LAYOUT-SIZE-AND-ALIGNMENT ::= INDEX INDEX // Size followed by alignment
 
+The ``AnyReference`` layout constraint (``A``) is compile-time only: like marker protocols, it is omitted from runtime mangled names. 
+An existential with an ``AnyReference`` member is mangled as a constraint existential with a ``Self: AnyReference``.
+
 A generic signature begins with an optional list of requirements.
 
 This is followed by an optional list of generic-param-pack-markers to record

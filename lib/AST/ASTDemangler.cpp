@@ -970,13 +970,21 @@ Type ASTBuilder::createConstrainedExistentialType(
     ArrayRef<BuiltInverseRequirement> inverseRequirements) {
   llvm::SmallMapVector<AssociatedTypeDecl *, Type, 2> primaryAssociatedTypes;
   llvm::SmallDenseSet<AssociatedTypeDecl *> claimed;
+  bool hasExplicitAnyReference = false;
 
   for (const auto &req : constraints) {
     switch (req.getKind()) {
+    case RequirementKind::Layout:
+      // 'Self: AnyReference' is how `any P & AnyReference` is mangled.
+      if (req.getFirstType()->is<GenericTypeParamType>() &&
+          req.getLayoutConstraint()->isAnyReference()) {
+        hasExplicitAnyReference = true;
+        continue;
+      }
+      break;
     case RequirementKind::SameShape:
     case RequirementKind::Conformance:
     case RequirementKind::Superclass:
-    case RequirementKind::Layout:
       break;
 
     case RequirementKind::SameType: {
@@ -1095,6 +1103,7 @@ Type ASTBuilder::createConstrainedExistentialType(
     auto compositionTy = base->castTo<ProtocolCompositionType>();
     hasExplicitAnyObject = compositionTy->hasExplicitAnyObject();
     ASSERT(compositionTy->getInverses().empty());
+    ASSERT(compositionTy->hasExplicitAnyReference() == hasExplicitAnyReference); // TODO Susana
 
     for (auto member : compositionTy->getMembers()) {
       if (auto *protoTy = member->getAs<ProtocolType>()) {
@@ -1202,7 +1211,7 @@ Type ASTBuilder::createConstrainedExistentialType(
   }
 
   return ExistentialType::get(ProtocolCompositionType::get(
-      Ctx, members, inverses, hasExplicitAnyObject, false)); // TODO Susana
+      Ctx, members, inverses, hasExplicitAnyObject, hasExplicitAnyReference));
 }
 
 Type ASTBuilder::createSymbolicExtendedExistentialType(NodePointer shapeNode,
