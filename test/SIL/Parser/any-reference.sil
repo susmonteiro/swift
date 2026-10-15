@@ -1,0 +1,19 @@
+// RUN: %target-sil-opt -enable-experimental-feature AnyReference %s | %FileCheck %s
+// RUN: not %target-sil-opt %s 2>&1 | %FileCheck --check-prefix=NO-FEATURE %s
+
+// REQUIRES: swift_feature_AnyReference
+
+sil_stage canonical
+
+import Builtin
+
+// CHECK-LABEL: sil @layout : $@convention(thin) <τ_0_0 where τ_0_0 : AnyReference> (@in_guaranteed τ_0_0) -> ()
+// NO-FEATURE: error: 'AnyReference' is experimental; enable it with '-enable-experimental-feature AnyReference'
+sil @layout : $@convention(thin) <T where T : _AnyReference> (@in_guaranteed T) -> ()
+
+// CHECK-LABEL: sil @builtinExistential : $@convention(thin) (@in_guaranteed any AnyReference) -> ()
+sil @builtinExistential : $@convention(thin) (@in_guaranteed Builtin.AnyReference) -> ()
+
+// Other layout constraints are unaffected.
+// CHECK-LABEL: sil @nativeClass : $@convention(thin) <τ_0_0 where τ_0_0 : _NativeClass> (@guaranteed τ_0_0) -> ()
+sil @nativeClass : $@convention(thin) <τ_0_0 where τ_0_0 : _NativeClass> (@guaranteed τ_0_0) -> ()

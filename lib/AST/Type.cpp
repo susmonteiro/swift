@@ -4480,6 +4480,13 @@ Type ProtocolCompositionType::theAnyObjectType(const ASTContext &C) {
                                       /*HasExplicitAnyReference=*/false);
 }
 
+/// Constructs a protocol composition containing the `AnyReference` constraint.
+Type ProtocolCompositionType::theAnyReferenceType(const ASTContext &C) {
+  return ProtocolCompositionType::get(C, {}, /*Inverses=*/{},
+                                      /*HasExplicitAnyObject=*/false,
+                                      /*HasExplicitAnyReference=*/true);
+}
+
 Type ProtocolCompositionType::getInverseOf(const ASTContext &C,
                                            InvertibleProtocolKind IP) {
   return ProtocolCompositionType::get(C, {}, /*Inverses=*/{IP},
@@ -5350,8 +5357,8 @@ bool TypeBase::hasSimpleTypeRepr() const {
     auto composition = cast<const ProtocolCompositionType>(this);
 
     // A protocol composition is simple if its syntactic representation does not
-    // involve `&`. This is true if we have 'Any', 'AnyObject', or a single
-    // inverse requirement like `~Copyable`.
+    // involve `&`. This is true if we have 'Any', 'AnyObject', 'AnyReference'
+    // or a single inverse requirement like `~Copyable`.
 
     // All other protocol compositions contain at least two `&`-separated terms.
 
@@ -5364,8 +5371,13 @@ bool TypeBase::hasSimpleTypeRepr() const {
       ++memberCount;
     }
 
-    // And finally, AnyObject.
-    if (composition->hasExplicitAnyObject())
+    // And finally, AnyObject or AnyReference.
+    ASSERT(!(composition->hasExplicitAnyObject() &&
+             composition->hasExplicitAnyReference()) &&
+           "if we can have both AnyObject and AnyReference, we need to "
+           "increment twice, or find where we allow the 2 to be set");
+    if (composition->hasExplicitAnyObject() ||
+        composition->hasExplicitAnyReference())
       ++memberCount;
 
     // Almost always, this will be > 1.

@@ -4135,8 +4135,9 @@ ERROR(inheritance_from_non_protocol_or_class,none,
   "inheritance from non-protocol, non-class type %0", (Type))
 ERROR(inheritance_from_non_protocol,none,
   "inheritance from non-protocol type %0", (Type))
-ERROR(inheritance_from_anyobject,none,
-  "only protocols can inherit from 'AnyObject'", ())
+ERROR(inheritance_from_anyobject_or_any_reference, none,
+      "only protocols can inherit from %select{'AnyObject'|'AnyReference'}0",
+      (bool))
 ERROR(superclass_not_first,none,
   "superclass %0 must appear first in the inheritance clause", (Type))
 ERROR(superclass_not_open,none,

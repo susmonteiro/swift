@@ -1103,7 +1103,6 @@ Type ASTBuilder::createConstrainedExistentialType(
     auto compositionTy = base->castTo<ProtocolCompositionType>();
     hasExplicitAnyObject = compositionTy->hasExplicitAnyObject();
     ASSERT(compositionTy->getInverses().empty());
-    ASSERT(compositionTy->hasExplicitAnyReference() == hasExplicitAnyReference); // TODO Susana
 
     for (auto member : compositionTy->getMembers()) {
       if (auto *protoTy = member->getAs<ProtocolType>()) {

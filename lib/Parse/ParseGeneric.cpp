@@ -345,6 +345,7 @@ ParserStatus Parser::parseGenericWhereClause(
           // There was a bug in the layout constraint.
           Status.setIsParseError();
         }
+
         auto Layout = LayoutInfo;
         // Types in SIL mode may contain layout constraints.
         if (!AllowLayoutConstraints && !isInSILMode()) {
@@ -358,6 +359,13 @@ ParserStatus Parser::parseGenericWhereClause(
               FirstType.get(), ColonLoc,
               LayoutConstraintLoc(Layout, LayoutLoc),
               isRequirementExpansion));
+        }
+
+        if (LayoutInfo->isAnyReference() &&
+            !Context.LangOpts.hasFeature(Feature::AnyReference)) {
+          diagnose(LayoutLoc, diag::any_reference_is_experimental);
+          Status.setIsParseError();
+          break;
         }
       } else {
         // Parse the protocol or composition.

@@ -729,6 +729,9 @@ public:
   /// Retrieve the type Swift.AnyObject as a constraint.
   CanType getAnyObjectConstraint() const;
 
+  /// Retrieve the type Swift.AnyReference as a constraint.
+  CanType getAnyReferenceConstraint() const;
+
   /// Retrieve the type Swift.AnyObject as an existential type.
   CanType getAnyObjectType() const;
 
