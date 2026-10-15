@@ -359,6 +359,13 @@ ParserStatus Parser::parseGenericWhereClause(
               LayoutConstraintLoc(Layout, LayoutLoc),
               isRequirementExpansion));
         }
+
+        if (LayoutInfo->isAnyReference() &&
+            !Context.LangOpts.hasFeature(Feature::AnyReference)) {
+          diagnose(LayoutLoc, diag::any_reference_is_experimental);
+          Status.setIsParseError();
+          break;
+        }
       } else {
         // Parse the protocol or composition.
         ParserResult<TypeRepr> Protocol = parseType();

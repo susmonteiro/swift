@@ -864,6 +864,31 @@ static bool usesFeatureNondeinitableTypes(Decl *decl) {
   return false;
 }
 
+static bool isAnyReferenceComposition(Type ty) {
+  if (auto *composition = ty->getAs<ProtocolCompositionType>())
+    return composition->hasExplicitAnyReference();
+  return false;
+}
+
+static bool hasAnyReferenceLayout(ArrayRef<Requirement> requirements) {
+  return llvm::any_of(requirements, [](const Requirement &req) {
+    return req.getKind() == RequirementKind::Layout &&
+           req.getLayoutConstraint()->isAnyReference();
+  });
+}
+
+static bool usesFeatureAnyReference(Decl *decl) {
+  if (usesTypeMatching(decl, isAnyReferenceComposition))
+    return true;
+
+  if (auto *genericContext = decl->getAsGenericContext())
+    if (auto sig = genericContext->getGenericSignature())
+      if (hasAnyReferenceLayout(sig.getRequirements()))
+        return true;
+
+  return false;
+}
+
 // ----------------------------------------------------------------------------
 // MARK: - FeatureSet
 // ----------------------------------------------------------------------------
