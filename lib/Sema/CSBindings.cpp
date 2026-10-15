@@ -1353,7 +1353,7 @@ void BindingSet::inferTransitiveUnresolvedMemberRefBindings() {
             auto ty = ProtocolCompositionType::get(CS.getASTContext(),
                                                    protocols,
                                                    InvertibleProtocolSet(),
-                                                   false /*anyObject*/);
+                                                   false /*anyObject*/, false);
             addBinding({ty, AllowedBindingKind::Fallback, constraintSource.value()});
             // Note the fact that we modified the binding set.
             markDirty();
@@ -1394,7 +1394,7 @@ static Type getKeyPathType(ASTContext &ctx, KeyPathCapability capability,
     auto *sendable = ctx.getProtocol(KnownProtocolKind::Sendable);
     keyPathTy = ProtocolCompositionType::get(
         ctx, {keyPathTy, sendable->getDeclaredInterfaceType()},
-        /*inverses=*/{}, /*hasExplicitAnyObject=*/false);
+        /*inverses=*/{}, /*hasExplicitAnyObject=*/false, false);
     return ExistentialType::get(keyPathTy);
   }
 

@@ -6846,7 +6846,7 @@ TypeResolver::resolveCompositionType(CompositionTypeRepr *repr,
   auto composition =
       ProtocolCompositionType::get(getASTContext(), Members,
                                    /*Inverses=*/{},
-                                   /*HasExplicitAnyObject=*/false);
+                                   /*HasExplicitAnyObject=*/false, false); // TODO Susana
 
   // Flatten the composition.
   if (auto canComposition = dyn_cast<ProtocolCompositionType>(

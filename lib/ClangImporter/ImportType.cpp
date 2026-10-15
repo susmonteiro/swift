@@ -1397,7 +1397,7 @@ namespace {
         importedType = ExistentialType::get(
             ProtocolCompositionType::get(Impl.SwiftContext, members,
                                          /*Inverses=*/{},
-                                         /*HasExplicitAnyObject=*/false));
+                                         /*HasExplicitAnyObject=*/false, false));
       }
 
       // Class or Class<P> maps to an existential metatype.
@@ -2099,7 +2099,7 @@ private:
     members.push_back(proto->getDeclaredInterfaceType());
 
     auto composition =
-        ProtocolCompositionType::get(ctx, members, inverses, explicitAnyObject);
+        ProtocolCompositionType::get(ctx, members, inverses, explicitAnyObject, false); // TODO Susana
 
     // If we started from a protocol or a composition we should already
     // be in an existential context. Otherwise we'd have to wrap a new

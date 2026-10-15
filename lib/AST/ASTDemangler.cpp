@@ -904,8 +904,8 @@ Type ASTBuilder::createProtocolCompositionType(
 
   // FIXME: move-only generics
   InvertibleProtocolSet inverses;
-  Type composition = ProtocolCompositionType::get(Ctx, members, inverses,
-                                                  isClassBound);
+  Type composition = ProtocolCompositionType::get(
+      Ctx, members, inverses, isClassBound, false); // TODO Susana
   if (forRequirement)
     return composition;
 
@@ -1202,7 +1202,7 @@ Type ASTBuilder::createConstrainedExistentialType(
   }
 
   return ExistentialType::get(ProtocolCompositionType::get(
-      Ctx, members, inverses, hasExplicitAnyObject));
+      Ctx, members, inverses, hasExplicitAnyObject, false)); // TODO Susana
 }
 
 Type ASTBuilder::createSymbolicExtendedExistentialType(NodePointer shapeNode,
@@ -1308,7 +1308,8 @@ static Requirement inverseAsRequirement(const InverseRequirement &inverseReq) {
   InvertibleProtocolSet inverses;
   inverses.insert(inverseReq.getKind());
   Type constraintType = ProtocolCompositionType::get(
-      ctx, { }, inverses, /*hasExplicitAnyObject=*/false);
+      ctx, {}, inverses, /*hasExplicitAnyObject=*/false,
+      /*hasExplicitAnyReference=*/false); // TODO Susana
   return Requirement(
       RequirementKind::Conformance, inverseReq.subject, constraintType);
 }

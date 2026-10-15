@@ -1110,7 +1110,7 @@ static Type existentialConstraintJoinMeetImpl(
   if (members.empty() && inverses.empty() && !anyObject)
     return Type();
 
-  return ProtocolCompositionType::get(ctx, members, inverses, anyObject);
+  return ProtocolCompositionType::get(ctx, members, inverses, anyObject, false); // TODO Susana
 }
 
 static Type superclassJoinMeetImpl(Operation op, Type lhs, Type rhs) {

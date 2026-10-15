@@ -8502,7 +8502,7 @@ Expected<Type> DESERIALIZE_TYPE(PROTOCOL_COMPOSITION_TYPE)(
     inverses.insert(InvertibleProtocolKind::Deinitable);
 
   return ProtocolCompositionType::get(MF.getContext(), protocols, inverses,
-                                      hasExplicitAnyObject);
+                                      hasExplicitAnyObject, false); // TODO Susana
 }
 
 Expected<Type> DESERIALIZE_TYPE(PARAMETERIZED_PROTOCOL_TYPE)(

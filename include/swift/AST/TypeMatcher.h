@@ -417,10 +417,12 @@ private:
 
     bool visitProtocolCompositionType(CanProtocolCompositionType firstProtocolComposition,
                                       Type secondType,
-                                      Type sugaredFirstType) {
+                                      Type sugaredFirstType) {      
       if (auto secondProtocolComposition = secondType->getAs<ProtocolCompositionType>()) {
         if (firstProtocolComposition->hasExplicitAnyObject() !=
-            secondProtocolComposition->hasExplicitAnyObject()) {
+                secondProtocolComposition->hasExplicitAnyObject() ||
+            firstProtocolComposition->hasExplicitAnyReference() !=
+                secondProtocolComposition->hasExplicitAnyReference()) {
           return mismatch(firstProtocolComposition.getPointer(), secondType,
                           sugaredFirstType);
         }

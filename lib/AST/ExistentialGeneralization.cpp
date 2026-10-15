@@ -107,9 +107,9 @@ private:
     for (auto origMember: origMembers) {
       newMembers.push_back(generalizeStructure(origMember));
     }
-    return ProtocolCompositionType::get(ctx, newMembers,
-                                        origType->getInverses(),
-                                        origType->hasExplicitAnyObject());
+    return ProtocolCompositionType::get(
+        ctx, newMembers, origType->getInverses(),
+        origType->hasExplicitAnyObject(), origType->hasExplicitAnyReference());
   }
 
   // Generalize the type arguments of nominal types.

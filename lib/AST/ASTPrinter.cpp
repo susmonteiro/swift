@@ -8037,6 +8037,9 @@ public:
     if (T->hasExplicitAnyObject())
       printSpecial("AnyObject");
 
+    if (T->hasExplicitAnyReference())
+      printSpecial("AnyReference");
+
     for (auto ip : T->getInverses())
       printSpecial(getProtocolName(getKnownProtocolKind(ip)), true);
 
@@ -8960,7 +8963,7 @@ static void getSyntacticInheritanceClause(const ProtocolDecl *proto,
 
     auto inverseTy = ProtocolCompositionType::get(
         ctx, ArrayRef<Type>(), singleton,
-        /*hasExplicitAnyObject=*/false);
+        /*hasExplicitAnyObject=*/false, /*hasExplicitAnyReference=*/false);
     Results.emplace_back(TypeLoc::withoutLoc(inverseTy),
                          ProtocolConformanceOptions());
   }
@@ -8987,7 +8990,8 @@ static Type stripParameterizedProtocolArgs(Type type) {
       return ProtocolCompositionType::get(
           type->getASTContext(), processedMembers,
           compositionType->getInverses(),
-          compositionType->hasExplicitAnyObject());
+          compositionType->hasExplicitAnyObject(),
+          compositionType->hasExplicitAnyReference());
     }
     return type;
   }
@@ -9044,10 +9048,10 @@ swift::getInheritedForPrinting(
       // Preserve any inverses that appeared in the unprintable type.
       if (foundUnprintable) {
         if (!printableInverses.empty()) {
-          auto inversesTy = ProtocolCompositionType::get(decl->getASTContext(),
-                                                         /*members=*/{},
-                                                         printableInverses,
-                                                         /*anyObject=*/false);
+          auto inversesTy = ProtocolCompositionType::get(
+              decl->getASTContext(),
+              /*members=*/{}, printableInverses,
+              /*anyObject=*/false, /*anyReference*/ false);
           Results.push_back(InheritedEntry(TypeLoc::withoutLoc(inversesTy)));
         }
         continue;

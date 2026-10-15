@@ -817,7 +817,7 @@ Type GenericSignatureImpl::getUpperBound(Type type,
   }
 
   return ProtocolCompositionType::get(ctx, types, inverses,
-                                      hasExplicitAnyObject);
+                                      hasExplicitAnyObject, false); // TODO Susana
 }
 
 Type GenericSignatureImpl::getExistentialType(Type paramTy) const {

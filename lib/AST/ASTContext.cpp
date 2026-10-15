@@ -4912,16 +4912,19 @@ ClassType *ClassType::get(ClassDecl *D, Type Parent, const ASTContext &C) {
   return known;
 }
 
-ProtocolCompositionType *
-ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
-                               InvertibleProtocolSet Inverses,
-                               bool HasExplicitAnyObject) {
-  assert(Members.size() != 1 || HasExplicitAnyObject || !Inverses.empty());
+ProtocolCompositionType *ProtocolCompositionType::build(
+    const ASTContext &C, ArrayRef<Type> Members, InvertibleProtocolSet Inverses,
+    bool HasExplicitAnyObject, bool HasExplicitAnyReference) {
+  assert(Members.size() != 1 || HasExplicitAnyObject ||
+         HasExplicitAnyReference || !Inverses.empty());
+  assert(!(HasExplicitAnyObject && HasExplicitAnyReference) &&
+         "AnyObject implies AnyReference, so we shouldn't store both.");
 
   // Check to see if we've already seen this protocol composition before.
   llvm::FoldingSetInsertToken InsertToken;
   llvm::FoldingSetNodeID ID;
-  ProtocolCompositionType::Profile(ID, Members, Inverses, HasExplicitAnyObject);
+  ProtocolCompositionType::Profile(ID, Members, Inverses, HasExplicitAnyObject,
+                                   HasExplicitAnyReference);
 
   bool isCanonical = true;
   RecursiveTypeProperties properties;
@@ -4941,11 +4944,9 @@ ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
   // Use trailing objects for member type storage
   auto size = totalSizeToAlloc<Type>(Members.size());
   auto mem = C.Allocate(size, alignof(ProtocolCompositionType), arena);
-  auto compTy = new (mem) ProtocolCompositionType(isCanonical ? &C : nullptr,
-                                                  Members,
-                                                  Inverses,
-                                                  HasExplicitAnyObject,
-                                                  properties);
+  auto compTy = new (mem) ProtocolCompositionType(
+      isCanonical ? &C : nullptr, Members, Inverses, HasExplicitAnyObject,
+      HasExplicitAnyReference, properties);
   C.getImpl().getArena(arena).ProtocolCompositionTypes.insert(compTy,
                                                               InsertToken);
   return compTy;
