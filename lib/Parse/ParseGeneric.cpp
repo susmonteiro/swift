@@ -14,12 +14,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "swift/Parse/Parser.h"
 #include "swift/AST/DiagnosticsParse.h"
 #include "swift/AST/GenericParamList.h"
 #include "swift/AST/TypeRepr.h"
+#include "swift/Basic/Feature.h"
 #include "swift/Parse/IDEInspectionCallbacks.h"
 #include "swift/Parse/Lexer.h"
+#include "swift/Parse/Parser.h"
 
 using namespace swift;
 
@@ -346,6 +347,14 @@ ParserStatus Parser::parseGenericWhereClause(
           Status.setIsParseError();
         }
         auto Layout = LayoutInfo;
+        // Spelling AnyReference requires the experimental feature AnyReference,
+        // except in SIL which prints it.
+        if (LayoutInfo->isAnyReference() && !isInSILMode() &&
+            !Context.LangOpts.hasFeature(Feature::AnyReference)) {
+          diagnose(LayoutLoc, diag::any_reference_is_experimental);
+          Status.setIsParseError();
+          break;
+        }
         // Types in SIL mode may contain layout constraints.
         if (!AllowLayoutConstraints && !isInSILMode()) {
           diagnose(LayoutLoc,

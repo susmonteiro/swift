@@ -935,6 +935,8 @@ static bool usesFeatureNondeinitableTypes(Decl *decl) {
   return suppressesDeinitable(decl);
 }
 
+UNINTERESTING_FEATURE(AnyReference)
+
 // ----------------------------------------------------------------------------
 // MARK: - FeatureSet
 // ----------------------------------------------------------------------------
