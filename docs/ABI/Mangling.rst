@@ -1141,6 +1141,7 @@ now codified into the ABI; the index 0 is therefore reserved.
   LAYOUT-CONSTRAINT ::= 'U'  // Unknown layout
   LAYOUT-CONSTRAINT ::= 'B' // BridgeObject
   LAYOUT-CONSTRAINT ::= 'S' // TrivialStride
+  LAYOUT-CONSTRAINT ::= 'A' // AnyReference
 
   LAYOUT-SIZE ::= INDEX // Size only
   LAYOUT-SIZE-AND-ALIGNMENT ::= INDEX INDEX // Size followed by alignment
