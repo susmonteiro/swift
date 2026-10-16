@@ -1908,12 +1908,11 @@ using ParameterizedProtocolMap =
 
 /// Collect the protocols in the existential type T into the given
 /// vector.
-static void addProtocols(Type T,
-                         SmallVectorImpl<ProtocolDecl *> &Protocols,
+static void addProtocols(Type T, SmallVectorImpl<ProtocolDecl *> &Protocols,
                          ParameterizedProtocolMap &Parameterized,
-                         Type &Superclass,
-                         InvertibleProtocolSet &Inverses,
-                         bool &HasExplicitAnyObject) {
+                         Type &Superclass, InvertibleProtocolSet &Inverses,
+                         bool &HasExplicitAnyObject,
+                         bool &HasExplicitAnyReference) {
   if (auto Proto = T->getAs<ProtocolType>()) {
     Protocols.push_back(Proto->getDecl());
     return;
@@ -1924,7 +1923,7 @@ static void addProtocols(Type T,
     HasExplicitAnyObject |= PC->hasExplicitAnyObject();
     for (auto P : PC->getMembers()) {
       addProtocols(P, Protocols, Parameterized, Superclass, Inverses,
-                   HasExplicitAnyObject);
+                   HasExplicitAnyObject, HasExplicitAnyReference);
     }
     return;
   }
@@ -2218,9 +2217,9 @@ CanType TypeBase::computeCanonicalType() {
       CanProtos.push_back(t->getCanonicalType());
     assert(!CanProtos.empty() && "Non-canonical empty composition?");
     const ASTContext &C = CanProtos[0]->getASTContext();
-    Type Composition = ProtocolCompositionType::get(C, CanProtos,
-                                                    PCT->getInverses(),
-                                                    PCT->hasExplicitAnyObject());
+    Type Composition = ProtocolCompositionType::get(
+        C, CanProtos, PCT->getInverses(), PCT->hasExplicitAnyObject(),
+        PCT->hasExplicitAnyReference());
     Result = Composition.getPointer();
     break;
   }
@@ -4384,8 +4383,10 @@ CanExistentialType CanExistentialType::get(CanType constraint) {
 void ProtocolCompositionType::Profile(llvm::FoldingSetNodeID &ID,
                                       ArrayRef<Type> Members,
                                       InvertibleProtocolSet Inverses,
-                                      bool HasExplicitAnyObject) {
+                                      bool HasExplicitAnyObject,
+                                      bool HasExplicitAnyReference) {
   ID.AddBoolean(HasExplicitAnyObject);
+  ID.AddBoolean(HasExplicitAnyReference);
   for (auto T : Members)
     ID.AddPointer(T.getPointer());
   for (auto IP : Inverses)
@@ -4495,19 +4496,23 @@ Type ProtocolCompositionType::withoutMarkerProtocols() const {
                                       getInverses(), hasExplicitAnyObject());
 }
 
-Type ProtocolCompositionType::get(const ASTContext &C,
-                                  ArrayRef<Type> Members,
-                                  InvertibleProtocolSet Inverses,
-                                  bool HasExplicitAnyObject) {
-  // Fast path for 'AnyObject', 'Any', and '~Copyable'.
+Type ProtocolCompositionType::get(
+    const ASTContext &C, ArrayRef<Type> Members, InvertibleProtocolSet Inverses,
+    bool HasExplicitAnyObject,
+    bool HasExplicitAnyReference) {
+  // AnyObject implies AnyReference; never store both.
+  if (HasExplicitAnyObject)
+    HasExplicitAnyReference = false;
+
+  // Fast path for 'AnyObject', 'AnyReference', 'Any', and '~Copyable'.
   if (Members.empty()) {
-    return build(C, Members, Inverses, HasExplicitAnyObject);
+    return build(C, Members, Inverses, HasExplicitAnyObject, HasExplicitAnyReference);
   }
 
   // Whether this composition has an `AnyObject` or protocol-inverse member
   // that is not reflected in the Members array.
   auto haveExtraMember = [&]{
-    return HasExplicitAnyObject || !Inverses.empty();
+    return HasExplicitAnyObject || HasExplicitAnyReference || !Inverses.empty();
   };
 
   // If there's a single member and no layout constraint or inverses,
@@ -4518,15 +4523,15 @@ Type ProtocolCompositionType::get(const ASTContext &C,
 
   for (Type t : Members) {
     if (!t->isCanonical())
-      return build(C, Members, Inverses, HasExplicitAnyObject);
+      return build(C, Members, Inverses, HasExplicitAnyObject, HasExplicitAnyReference);
   }
 
   Type Superclass;
   SmallVector<ProtocolDecl *, 4> Protocols;
   ParameterizedProtocolMap Parameterized;
   for (Type t : Members) {
-    addProtocols(t, Protocols, Parameterized, Superclass,
-                 Inverses, HasExplicitAnyObject);
+    addProtocols(t, Protocols, Parameterized, Superclass, Inverses,
+                 HasExplicitAnyObject, HasExplicitAnyReference);
   }
 
   // Form the set of canonical component types.
@@ -4535,6 +4540,7 @@ Type ProtocolCompositionType::get(const ASTContext &C,
   // The presence of a superclass constraint makes AnyObject redundant.
   if (Superclass) {
     HasExplicitAnyObject = false;
+    HasExplicitAnyReference = false;
     CanTypes.push_back(Superclass->getCanonicalType());
   }
 
@@ -4557,11 +4563,18 @@ Type ProtocolCompositionType::get(const ASTContext &C,
     CanTypes.push_back(proto->getDeclaredInterfaceType());
   }
 
+  // AnyObject or class-constrained protocol makes AnyReference redundant.
+  if (HasExplicitAnyReference &&
+      (HasExplicitAnyObject || llvm::any_of(Protocols, [](ProtocolDecl *proto) {
+         return proto->requiresClass();
+       })))
+    HasExplicitAnyReference = false;
+
   // If one member remains with no extra members, return that type.
   if (CanTypes.size() == 1 && !haveExtraMember())
     return CanTypes.front();
 
-  return build(C, CanTypes, Inverses, HasExplicitAnyObject);
+  return build(C, CanTypes, Inverses, HasExplicitAnyObject, HasExplicitAnyReference);
 }
 
 CanType ProtocolCompositionType::getMinimalCanonicalType() const {
@@ -5351,8 +5364,8 @@ bool TypeBase::hasSimpleTypeRepr() const {
     auto composition = cast<const ProtocolCompositionType>(this);
 
     // A protocol composition is simple if its syntactic representation does not
-    // involve `&`. This is true if we have 'Any', 'AnyObject', or a single
-    // inverse requirement like `~Copyable`.
+    // involve `&`. This is true if we have 'Any', 'AnyObject', 'AnyReference'
+    // or a single inverse requirement like `~Copyable`.
 
     // All other protocol compositions contain at least two `&`-separated terms.
 
@@ -5365,8 +5378,13 @@ bool TypeBase::hasSimpleTypeRepr() const {
       ++memberCount;
     }
 
-    // And finally, AnyObject.
-    if (composition->hasExplicitAnyObject())
+    // And finally, AnyObject or AnyReference.
+    ASSERT(!(composition->hasExplicitAnyObject() &&
+             composition->hasExplicitAnyReference()) &&
+           "if we can have both AnyObject and AnyReference, we need to "
+           "increment twice, or find where we allow the 2 to be set");
+    if (composition->hasExplicitAnyObject() ||
+        composition->hasExplicitAnyReference())
       ++memberCount;
 
     // Almost always, this will be > 1.
