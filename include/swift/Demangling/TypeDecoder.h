@@ -585,6 +585,7 @@ void decodeRequirement(
               .Case("U", LayoutConstraintKind::UnknownLayout)
               .Case("R", LayoutConstraintKind::RefCountedObject)
               .Case("N", LayoutConstraintKind::NativeRefCountedObject)
+              .Case("A", LayoutConstraintKind::AnyReference)
               .Case("C", LayoutConstraintKind::Class)
               .Case("D", LayoutConstraintKind::NativeClass)
               .Case("T", LayoutConstraintKind::Trivial)

@@ -1789,6 +1789,9 @@ void Serializer::serializeGenericRequirements(
       case LayoutConstraintKind::TrivialOfAtMostSize:
         rawKind = LayoutRequirementKind::TrivialOfAtMostSize;
         break;
+      case LayoutConstraintKind::AnyReference:
+        rawKind = LayoutRequirementKind::AnyReference;
+        break;
       case LayoutConstraintKind::Class:
         rawKind = LayoutRequirementKind::Class;
         break;

@@ -32,6 +32,10 @@ enum class ENUM_EXTENSIBILITY_ATTR(closed) LayoutConstraintKind : uint8_t {
   TrivialOfAtMostSize SWIFT_NAME("trivialOfAtMostSize"),
   // It is a layout constraint representing a trivial type of an unknown size.
   Trivial SWIFT_NAME("trivial"),
+  // It is a layout constraint representing a reference counted class or foreign
+  // reference type. It is a single non-null pointer to a heap object, with any
+  // reference counting operations.
+  AnyReference SWIFT_NAME("anyReference"),
   // It is a layout constraint representing a reference counted class instance.
   Class SWIFT_NAME("class"),
   // It is a layout constraint representing a reference counted native class
