@@ -499,13 +499,16 @@ protected:
     Representation : 2
   );
 
-  SWIFT_INLINE_BITFIELD_FULL(ProtocolCompositionType, TypeBase, 1+31,
+  SWIFT_INLINE_BITFIELD_FULL(ProtocolCompositionType, TypeBase, 1+1+30,
     /// Whether we have an explicitly-stated class constraint not
     /// implied by any of our members.
     HasExplicitAnyObject : 1,
+    /// Whether we have an explicitly-stated AnyReference constraint not
+    /// implied by any of our members.
+    HasExplicitAnyReference : 1,
 
     /// The number of protocols being composed.
-    Count : 31;
+    Count : 30;
 
     static_assert(NumPadBits == 0, "Re-insert padding if > 0");
   );
@@ -6935,9 +6938,11 @@ public:
   /// most one ClassType or BoundGenericClassType.
   ///
   /// HasExplicitAnyObject is the 'AnyObject' member.
+  /// HasExplicitAnyReference is the 'AnyReference' member.
   static Type get(const ASTContext &C, ArrayRef<Type> Members,
-                  InvertibleProtocolSet Inverses,
-                  bool HasExplicitAnyObject);
+                  InvertibleProtocolSet Inverses, bool HasExplicitAnyObject,
+                  bool HasExplicitAnyReference =
+                      false); // TODO Susana: set as false for now
 
   /// Constructs a protocol composition corresponding to the `Any` type.
   static Type theAnyType(const ASTContext &C);
@@ -6993,6 +6998,11 @@ public:
   /// one of its member protocols being class-constrained.
   bool requiresClass();
 
+  /// True if the class requirement is stated directly via '& AnyReference'.
+  bool hasExplicitAnyReference() const {
+    return Bits.ProtocolCompositionType.HasExplicitAnyReference;
+  }
+
   /// True if the class requirement is stated directly via '& AnyObject'.
   bool hasExplicitAnyObject() const {
     return Bits.ProtocolCompositionType.HasExplicitAnyObject;
@@ -7011,15 +7021,18 @@ private:
   static ProtocolCompositionType *build(const ASTContext &C,
                                         ArrayRef<Type> Members,
                                         InvertibleProtocolSet Inverses,
-                                        bool HasExplicitAnyObject);
+                                        bool HasExplicitAnyObject,
+                                        bool HasExplicitAnyReference);
 
   ProtocolCompositionType(const ASTContext *ctx, ArrayRef<Type> members,
                           InvertibleProtocolSet inverses,
                           bool hasExplicitAnyObject,
+                          bool hasExplicitAnyReference,
                           RecursiveTypeProperties properties)
-    : TypeBase(TypeKind::ProtocolComposition, /*Context=*/ctx, properties),
-      Inverses(inverses) {
+      : TypeBase(TypeKind::ProtocolComposition, /*Context=*/ctx, properties),
+        Inverses(inverses) {
     Bits.ProtocolCompositionType.HasExplicitAnyObject = hasExplicitAnyObject;
+    Bits.ProtocolCompositionType.HasExplicitAnyReference = hasExplicitAnyReference;
     Bits.ProtocolCompositionType.Count = members.size();
     std::uninitialized_copy(members.begin(), members.end(),
                             getTrailingObjects());

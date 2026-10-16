@@ -4912,10 +4912,9 @@ ClassType *ClassType::get(ClassDecl *D, Type Parent, const ASTContext &C) {
   return known;
 }
 
-ProtocolCompositionType *
-ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
-                               InvertibleProtocolSet Inverses,
-                               bool HasExplicitAnyObject) {
+ProtocolCompositionType *ProtocolCompositionType::build(
+    const ASTContext &C, ArrayRef<Type> Members, InvertibleProtocolSet Inverses,
+    bool HasExplicitAnyObject, bool HasExplicitAnyReference) {
   assert(Members.size() != 1 || HasExplicitAnyObject || !Inverses.empty());
 
   // Check to see if we've already seen this protocol composition before.
@@ -4941,11 +4940,9 @@ ProtocolCompositionType::build(const ASTContext &C, ArrayRef<Type> Members,
   // Use trailing objects for member type storage
   auto size = totalSizeToAlloc<Type>(Members.size());
   auto mem = C.Allocate(size, alignof(ProtocolCompositionType), arena);
-  auto compTy = new (mem) ProtocolCompositionType(isCanonical ? &C : nullptr,
-                                                  Members,
-                                                  Inverses,
-                                                  HasExplicitAnyObject,
-                                                  properties);
+  auto compTy = new (mem) ProtocolCompositionType(
+      isCanonical ? &C : nullptr, Members, Inverses, HasExplicitAnyObject,
+      HasExplicitAnyReference, properties);
   C.getImpl().getArena(arena).ProtocolCompositionTypes.insert(compTy,
                                                               InsertToken);
   return compTy;
