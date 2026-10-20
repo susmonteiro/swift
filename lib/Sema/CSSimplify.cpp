@@ -16758,11 +16758,17 @@ void ConstraintSystem::addConstraint(Requirement req,
     kind = ConstraintKind::Bind;
     break;
   case RequirementKind::Layout:
-    // Only a class constraint can be modeled as a constraint, and only that can
-    // appear outside of a @_specialize at the moment anyway.
+    // Only class and AnyReference constraints can be modeled as constraints,
+    // and only those can appear outside of a @_specialize at the moment anyway.
     if (req.getLayoutConstraint()->isClass()) {
       conformsToAnyObject = true;
       break;
+    } else if (req.getLayoutConstraint()->isAnyReference()) {
+      addConstraint(
+          ConstraintKind::ConformsTo, req.getFirstType(),
+          ProtocolCompositionType::theAnyReferenceType(getASTContext()),
+          locator, /*isFavored*/ false, preparedOverload);
+      return;
     } else {
       llvm_unreachable("unexpected LayoutConstraint kind");
     }

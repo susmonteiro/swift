@@ -104,6 +104,8 @@ class LayoutConstraintInfo
     return isClass(Kind);
   }
 
+  bool impliesAnyReference() const { return isAnyReference() || isClass(); }
+
   bool isNativeClass() const {
     return isNativeClass(Kind);
   }

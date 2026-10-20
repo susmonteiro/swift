@@ -4876,9 +4876,17 @@ llvm::Constant *IRGenModule::getAddrOfGenericEnvironment(
         SmallVector<InverseRequirement, 2> inverses;
         signature->getRequirementsWithInverses(reqs, inverses);
 
-        auto flags = GenericEnvironmentFlags()
-          .withNumGenericParameterLevels(genericParamCounts.size())
-          .withNumGenericRequirements(reqs.size());
+        // addGenericRequirements doesn't emit AnyReference requirements,
+        // because this is erased at runtime, like marker protocols.
+        llvm::erase_if(reqs, [](const Requirement &req) {
+          return req.getKind() == RequirementKind::Layout &&
+                 req.getLayoutConstraint()->isAnyReference();
+        });
+
+        auto flags =
+            GenericEnvironmentFlags()
+                .withNumGenericParameterLevels(genericParamCounts.size())
+                .withNumGenericRequirements(reqs.size());
 
         ConstantStructBuilder fields = builder.beginStruct();
         fields.setPacked(true);

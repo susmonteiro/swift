@@ -164,3 +164,8 @@ module LibkernOwnership {
 module CDeclFRT {
   header "cdecl.h"
 }
+
+module AnyReferenceFRTs {
+  header "any-reference.h"
+  requires cplusplus
+}

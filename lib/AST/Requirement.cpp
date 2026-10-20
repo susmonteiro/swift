@@ -145,9 +145,15 @@ CheckRequirementResult Requirement::checkRequirement(
       return expandPackRequirement(packType);
     }
 
+    if (getLayoutConstraint()->isAnyReference())
+      return firstType->satisfiesAnyReferenceConstraint()
+                 ? CheckRequirementResult::Success
+                 : CheckRequirementResult::RequirementFailure;
+
     if (auto *archetypeType = firstType->getAs<ArchetypeType>()) {
       auto layout = archetypeType->getLayoutConstraint();
-      if (layout && layout.merge(getLayoutConstraint()))
+      if (layout && !layout->isAnyReference() &&
+          layout.merge(getLayoutConstraint()))
         return CheckRequirementResult::Success;
 
       return CheckRequirementResult::RequirementFailure;

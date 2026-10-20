@@ -3876,6 +3876,9 @@ void ASTMangler::appendRequirement(const Requirement &reqt,
 
   switch (reqt.getKind()) {
   case RequirementKind::Layout:
+    // AnyReference is erased at runtime, like marker protocols.
+    if (!AllowMarkerProtocols && reqt.getLayoutConstraint()->isAnyReference())
+      return;
     break;
   case RequirementKind::Conformance: {
     // If we don't allow marker protocols but we have one here, skip it.

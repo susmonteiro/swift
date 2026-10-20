@@ -7933,6 +7933,9 @@ GenericArgumentMetadata irgen::addGenericRequirements(
 
     switch (kind) {
     case RequirementKind::Layout:
+      // AnyReference is erased at runtime, like marker protocols.
+      if (requirement.getLayoutConstraint()->isAnyReference())
+        break;
       ++metadata.NumRequirements;
 
       switch (requirement.getLayoutConstraint()->getKind()) {
