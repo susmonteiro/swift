@@ -58,6 +58,7 @@ struct ExistentialLayout {
 
   ExistentialLayout() {
     hasExplicitAnyObject = false;
+    hasExplicitAnyReference = false;
     containsObjCProtocol = false;
     containsSwiftProtocol = false;
     representsAnyObject = false;
@@ -72,6 +73,9 @@ struct ExistentialLayout {
 
   /// Whether the existential contains an explicit '& AnyObject' constraint.
   bool hasExplicitAnyObject : 1;
+
+  /// Whether the existential contains an explicit '& AnyReference' constraint.
+  bool hasExplicitAnyReference : 1;
 
   /// Whether any protocol members are @objc.
   bool containsObjCProtocol : 1;

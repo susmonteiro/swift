@@ -366,12 +366,18 @@ protected:
   bool diagnoseAsAmbiguousOperatorRef();
 
   DiagOnDecl getDiagnosticOnDecl() const override {
+    if (getRequirement().getKind() == RequirementKind::Layout &&
+        getRequirement().getLayoutConstraint()->isAnyReference())
+      return diag::type_does_not_conform_anyreference_decl_owner;
     return (getRequirement().getKind() == RequirementKind::Layout ?
             diag::type_does_not_conform_anyobject_decl_owner :
             diag::type_does_not_conform_decl_owner);
   }
 
   DiagInReference getDiagnosticInRereference() const override {
+    if (getRequirement().getKind() == RequirementKind::Layout &&
+        getRequirement().getLayoutConstraint()->isAnyReference())
+      return diag::type_does_not_conform_anyreference_in_decl_ref;
     return (getRequirement().getKind() == RequirementKind::Layout ?
             diag::type_does_not_conform_anyobject_in_decl_ref :
             diag::type_does_not_conform_in_decl_ref);

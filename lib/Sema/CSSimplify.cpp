@@ -4402,6 +4402,35 @@ ConstraintSystem::matchExistentialTypes(Type type1, Type type2,
     }
   }
 
+  // Handle an explicit '& AnyReference' constraint. Unlike AnyObject, it is
+  // not checked at runtime, so it has to be fully checked here.
+  if (layout.hasExplicitAnyReference) {
+    bool isConformance = kind == ConstraintKind::ConformsTo ||
+                         kind == ConstraintKind::NonisolatedConformsTo;
+    bool satisfied = type1->satisfiesAnyReferenceConstraint() || !isConformance;
+
+    if (!satisfied) {
+      if (shouldAttemptFixes() && isConformance) {
+        if (auto last = locator.last()) {
+          if (auto req = last->getAs<LocatorPathElt::AnyRequirement>()) {
+            if (type1->is<HoleType>() ||
+                (!type1->isExistentialType() &&
+                 req->getRequirementKind() == RequirementKind::Superclass))
+              return SolutionKind::Solved;
+
+            auto *fix = fixRequirementFailure(*this, type1, type2, locator);
+            if (fix && !recordFix(fix)) {
+              recordFixedRequirement(getConstraintLocator(locator), type2);
+              return SolutionKind::Solved;
+            }
+          }
+        }
+      }
+
+      return SolutionKind::Error;
+    }
+  }
+
   if (layout.explicitSuperclass) {
     auto result = matchTypes(type1, layout.explicitSuperclass,
                              ConstraintKind::Subtype,

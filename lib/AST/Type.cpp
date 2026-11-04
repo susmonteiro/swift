@@ -409,6 +409,7 @@ ExistentialLayout::ExistentialLayout(CanProtocolType type) {
   auto *protoDecl = type->getDecl();
 
   hasExplicitAnyObject = false;
+  hasExplicitAnyReference = false;
   containsObjCProtocol = protoDecl->isObjC();
   containsSwiftProtocol = (!protoDecl->isObjC() &&
                            !protoDecl->isMarkerProtocol());
@@ -422,6 +423,7 @@ ExistentialLayout::ExistentialLayout(CanProtocolType type) {
 
 ExistentialLayout::ExistentialLayout(CanProtocolCompositionType type) {
   hasExplicitAnyObject = type->hasExplicitAnyObject();
+  hasExplicitAnyReference = type->hasExplicitAnyReference();
   containsObjCProtocol = false;
   containsSwiftProtocol = false;
 
