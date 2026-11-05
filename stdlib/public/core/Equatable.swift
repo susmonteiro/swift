@@ -259,7 +259,8 @@ internal func Equatable_isEqual_indirect<T: Equatable>(
 ///   - rhs: Another reference to compare.
 #if !$Embedded
 @inlinable // trivial-implementation
-public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
+// TODO should probably check if AnyReference experimental feature is enabled before defining this function
+public func === (lhs: AnyReference?, rhs: AnyReference?) -> Bool {
   switch (lhs, rhs) {
   case let (l?, r?):
     return ObjectIdentifier(l) == ObjectIdentifier(r)
@@ -272,10 +273,12 @@ public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
 #else
 @inlinable // trivial-implementation
 @safe
-public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
+public func === (lhs: AnyReference?, rhs: AnyReference?) -> Bool {
   switch (lhs, rhs) {
   case let (l?, r?):
-    return Builtin.bridgeToRawPointer(l) == Builtin.bridgeToRawPointer(r)
+    let lRawPointer : Builtin.RawPointer = Builtin.reinterpretCast(l)
+    let rRawPointer : Builtin.RawPointer = Builtin.reinterpretCast(r)
+    return lRawPointer == rRawPointer
   case (nil, nil):
     return true
   default:
@@ -295,6 +298,6 @@ public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
 ///   - lhs: A reference to compare.
 ///   - rhs: Another reference to compare.
 @inlinable // trivial-implementation
-public func !== (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
+public func !== (lhs: AnyReference?, rhs: AnyReference?) -> Bool {
   return !(lhs === rhs)
 }

@@ -58,6 +58,13 @@ public struct ObjectIdentifier: Sendable {
     self._value = Builtin.bridgeToRawPointer(x)
   }
 
+  @inlinable // trivial-implementation
+  public init(_ x: AnyReference) {
+    // self._value = Builtin.bridgeToRawPointer(x)
+    // self._value = unsafe unsafeBitCast(x, to: Builtin.RawPoin)
+    self._value = Builtin.reinterpretCast(x)
+  }
+
   /// Creates an instance that uniquely identifies the given metatype.
   ///
   /// - Parameters:

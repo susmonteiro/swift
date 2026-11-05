@@ -26,6 +26,8 @@ struct RefCountedType {
 
   RefCountedType(const RefCountedType &) = delete;
 
+  int getValue() const { return value; }
+
   virtual ~RefCountedType() {}
 
   // Returns `this` without transferring ownership: the same object, again.
