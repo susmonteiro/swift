@@ -735,7 +735,7 @@ EXPERIMENTAL_FEATURE(ModernImportedCArrays, true)
 EXPERIMENTAL_FEATURE(ModernImportedCArraysOnly, true)
 
 /// Allow spelling and conforming to `AnyReference`.
-EXPERIMENTAL_FEATURE(AnyReference, false)
+EXPERIMENTAL_FEATURE(AnyReference, true)
 
 #undef EXPERIMENTAL_FEATURE_EXCLUDED_FROM_MODULE_INTERFACE
 #undef EXPERIMENTAL_FEATURE
