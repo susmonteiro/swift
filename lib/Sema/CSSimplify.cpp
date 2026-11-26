@@ -4261,6 +4261,17 @@ ConstraintSystem::matchDeepEqualityTypes(Type type1, Type type2,
   return matchDeepTypeArguments(*this, subflags, args1, args2, locator);
 }
 
+/// Whether \p type is an existential or a protocol composition with an
+/// explicit '_AnyReference' member. The existential layout doesn't record this
+/// constraint, so look at the composition directly.
+static bool hasExplicitAnyReference(Type type) {
+  if (auto *existential = type->getAs<ExistentialType>())
+    type = existential->getConstraintType();
+  if (auto *composition = type->getAs<ProtocolCompositionType>())
+    return composition->hasExplicitAnyReference();
+  return false;
+}
+
 ConstraintSystem::SolutionKind
 ConstraintSystem::matchExistentialTypes(Type type1, Type type2,
                                         ConstraintKind kind,
@@ -4400,6 +4411,32 @@ ConstraintSystem::matchExistentialTypes(Type type1, Type type2,
 
       // Keep going.
     }
+  }
+
+  // A '_AnyReference' requirement is only satisfied by class types, foreign
+  // reference types, and type parameters constrained to either.
+  if ((kind == ConstraintKind::ConformsTo ||
+       kind == ConstraintKind::NonisolatedConformsTo) &&
+      hasExplicitAnyReference(type2) &&
+      !type1->satisfiesObjectReferenceConstraint()) {
+    if (shouldAttemptFixes()) {
+      if (auto last = locator.last()) {
+        if (last->is<LocatorPathElt::AnyRequirement>()) {
+          // In diagnostic mode, a hole satisfies the requirement; the
+          // failure that produced the hole is more interesting.
+          if (type1->is<HoleType>())
+            return SolutionKind::Solved;
+
+          auto *fix = fixRequirementFailure(*this, type1, type2, locator);
+          if (fix && !recordFix(fix)) {
+            recordFixedRequirement(getConstraintLocator(locator), type2);
+            return SolutionKind::Solved;
+          }
+        }
+      }
+    }
+
+    return SolutionKind::Error;
   }
 
   if (layout.explicitSuperclass) {

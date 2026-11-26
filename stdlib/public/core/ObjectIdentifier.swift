@@ -12,14 +12,16 @@
 
 #if !$Embedded
 
-/// A unique identifier for a class instance, actor instance, or metatype.
+/// A unique identifier for a class instance, actor instance, foreign reference
+/// type instance, or metatype.
 ///
 /// This unique identifier is valid for comparisons only during the lifetime
 /// of the instance.
 ///
-/// In Swift, only instances of classes, instances of actors, and metatypes
-/// have unique identities. There's no notion of identity for structures,
-/// enumerations, functions, or tuples.
+/// In Swift, only instances of classes, instances of actors, instances of
+/// imported C++ foreign reference types, and metatypes have unique
+/// identities. There's no notion of identity for structures, enumerations,
+/// functions, or tuples.
 @frozen // trivial-implementation
 public struct ObjectIdentifier: Sendable {
   @usableFromInline // trivial-implementation
@@ -94,6 +96,23 @@ public struct ObjectIdentifier: Sendable {
 }
 
 #endif
+
+extension ObjectIdentifier {
+  /// Creates an instance that uniquely identifies the given class instance or
+  /// foreign reference type instance.
+  ///
+  /// - Parameter x: An instance of a class or of a foreign reference type.
+  @export(implementation)
+  @_disfavoredOverload
+  public init<Object: _AnyReference & ~Copyable & ~Deinitable>(
+    _ x: borrowing Object
+  ) {
+    // Suppressing `Copyable` and `Deinitable` keeps this generic code from
+    // ever needing to copy or destroy `x`, which would require knowing how the
+    // reference is reference-counted.
+    self._value = Builtin.bridgeToRawPointer(x)
+  }
+}
 
 @_unavailableInEmbedded
 extension ObjectIdentifier: CustomDebugStringConvertible {

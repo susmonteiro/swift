@@ -671,6 +671,44 @@ bool MissingConformanceFailure::diagnoseAsError() {
     }
   }
 
+  // When an operand of '===' or '!==' isn't a reference, the '_AnyReference'
+  // overloads need fewer fixes than the 'AnyObject?' overloads, so they are
+  // the ones diagnosed. Diagnose the operands the way the 'AnyObject?'
+  // overloads would.
+  if (getRequirement().getKind() == RequirementKind::Layout &&
+      getRequirement().getLayoutConstraint()->isObjectReference() &&
+      isExpr<Expr>(anchor)) {
+    auto *binaryOp =
+        dyn_cast_or_null<BinaryExpr>(findParentExpr(castToExpr(anchor)));
+    auto name = binaryOp ? getOperatorName(binaryOp->getFn()) : std::nullopt;
+    if (name && (name->is("===") || name->is("!=="))) {
+      auto *lhs = binaryOp->getLHS();
+      auto *rhs = binaryOp->getRHS();
+      if (nonConformingType->is<AnyFunctionType>()) {
+        emitDiagnosticAt(binaryOp->getLoc(),
+                         diag::cannot_reference_compare_types, name->str(),
+                         getType(lhs), getType(rhs))
+            .highlight(lhs->getSourceRange())
+            .highlight(rhs->getSourceRange());
+        return true;
+      }
+
+      bool diagnosed = false;
+      for (auto *operand : {lhs, rhs}) {
+        auto type = getType(operand);
+        if (type->lookThroughAllOptionalTypes()
+                ->satisfiesObjectReferenceConstraint())
+          continue;
+        emitDiagnosticAt(operand->getLoc(),
+                         diag::cannot_convert_argument_value_anyobject, type,
+                         getASTContext().getAnyObjectType());
+        diagnosed = true;
+      }
+      if (diagnosed)
+        return true;
+    }
+  }
+
   // If the problem has been (unambiguously) determined to be related
   // to one of of the standard comparison operators and argument is
   // enum with associated values, let's produce a tailored note which

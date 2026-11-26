@@ -410,6 +410,16 @@ static bool isCOMConstrainedArchetype(SILType type) {
   return false;
 }
 
+/// Whether \p type is an archetype with the '_AnyReference' layout constraint.
+/// Such an archetype is represented as a single pointer, even though its
+/// generic lowering is address-only.
+static bool isObjectReferenceArchetype(SILType type) {
+  if (auto *archetype = type.getASTType()->getAs<ArchetypeType>())
+    if (auto layout = archetype->getLayoutConstraint())
+      return layout->isObjectReference();
+  return false;
+}
+
 /// Specialized emitter for Builtin.bridgeToRawPointer.
 static ManagedValue emitBuiltinBridgeToRawPointer(SILGenFunction &SGF,
                                         SILLocation loc,
@@ -423,7 +433,8 @@ static ManagedValue emitBuiltinBridgeToRawPointer(SILGenFunction &SGF,
   // argument remains.
   SILType rawPointerType = SILType::getRawPointerType(SGF.F.getASTContext());
   if (!SGF.getTypeLowering(args[0].getType()).isLoadable()) {
-    if (!isCOMConstrainedArchetype(args[0].getType())) {
+    if (!isCOMConstrainedArchetype(args[0].getType()) &&
+        !isObjectReferenceArchetype(args[0].getType())) {
       SGF.SGM.diagnose(
           loc, diag::invalid_sil_builtin,
           "bridgeToRawPointer operand must have an object or interface "
@@ -440,7 +451,8 @@ static ManagedValue emitBuiltinBridgeToRawPointer(SILGenFunction &SGF,
   }
 
   if (args[0].getType().getASTType().isCOMExistentialType() ||
-      isCOMConstrainedArchetype(args[0].getType())) {
+      isCOMConstrainedArchetype(args[0].getType()) ||
+      isObjectReferenceArchetype(args[0].getType())) {
     auto value = args[0];
     if (value.getType().isMoveOnlyWrapped()) {
       if (value.getOwnershipKind() != OwnershipKind::Guaranteed)

@@ -298,3 +298,46 @@ public func === (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
 public func !== (lhs: AnyObject?, rhs: AnyObject?) -> Bool {
   return !(lhs === rhs)
 }
+
+/// Returns a Boolean value indicating whether two references point to the same
+/// class instance or foreign reference type instance.
+///
+/// Like the `AnyObject?` overload, this operator tests whether two instances
+/// have the same identity, not the same value. Two `nil` references are
+/// identical.
+///
+/// - Parameters:
+///   - lhs: A reference to compare.
+///   - rhs: Another reference to compare.
+@export(implementation)
+@_disfavoredOverload
+public func === <Object: _AnyReference & ~Copyable>(
+  lhs: borrowing Object?, rhs: borrowing Object?
+) -> Bool {
+  // An optional reference is a nullable pointer. Read both pointers in place,
+  // so that this function does not copy, retain or release either reference.
+  //
+  // Unlike `ObjectIdentifier.init`, this can't suppress `Deinitable`, because
+  // `Optional` requires its payload to be `Deinitable`.
+  let l: Builtin.RawPointer = Builtin.load(Builtin.addressOfBorrow(lhs))
+  let r: Builtin.RawPointer = Builtin.load(Builtin.addressOfBorrow(rhs))
+  return Bool(Builtin.cmp_eq_RawPointer(l, r))
+}
+
+/// Returns a Boolean value indicating whether two references point to
+/// different class instances or foreign reference type instances.
+///
+/// - Parameters:
+///   - lhs: A reference to compare.
+///   - rhs: Another reference to compare.
+@export(implementation)
+@_disfavoredOverload
+public func !== <Object: _AnyReference & ~Copyable>(
+  lhs: borrowing Object?, rhs: borrowing Object?
+) -> Bool {
+  // `lhs === rhs` can't be used here: a `~Copyable` type parameter doesn't
+  // satisfy another function's `_AnyReference` requirement.
+  let l: Builtin.RawPointer = Builtin.load(Builtin.addressOfBorrow(lhs))
+  let r: Builtin.RawPointer = Builtin.load(Builtin.addressOfBorrow(rhs))
+  return Bool(Builtin.cmp_ne_RawPointer(l, r))
+}

@@ -1310,7 +1310,10 @@ static ValueDecl *getNativeObjectCast(ASTContext &Context, Identifier Id,
 
   // Add safety, unless requested.
   if (BV != BuiltinValueKind::UnsafeCastToNativeObject) {
-    builder.addConformanceRequirement(genParam, KnownProtocolKind::Copyable);
+    // Bridging to a raw pointer only borrows the value, so it doesn't need to
+    // copy or destroy it.
+    if (BV != BuiltinValueKind::BridgeToRawPointer)
+      builder.addConformanceRequirement(genParam, KnownProtocolKind::Copyable);
     builder.addConformanceRequirement(genParam, KnownProtocolKind::Escapable);
   }
 
